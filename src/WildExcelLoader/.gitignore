@@ -1,0 +1,6 @@
+.vs
+WildExcelLoader/obj
+EFCore_DBLibrary/obj
+WildExcelLoader/bin
+EFCore_DBLibrary/bin
+
