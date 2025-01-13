@@ -10,7 +10,7 @@ namespace RAppsAPI.Services
             throw new NotImplementedException();
         }
 
-        public Task<RAppUser?> RegisterAsync(RegisterUserDto request)
+        public Task<User?> RegisterAsync(RegisterUserDto request)
         {
             throw new NotImplementedException();
         }

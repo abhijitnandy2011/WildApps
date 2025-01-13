@@ -1,16 +1,14 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Identity.Client;
 using RAppsAPI.Entities;
 
 
 namespace RAppsAPI.Data
 {
-    public class RDBContext: IdentityDbContext<RAppUser>
+    public class RDBContext(DbContextOptions<RDBContext> options) : DbContext(options)
     {
-        public RDBContext(DbContextOptions<RDBContext> options) : base(options) 
-        { 
-            
-        }
+        public DbSet<User> Users { get; set; }
+        public DbSet<Role> Roles { get; set; }       
+      
     }
 }

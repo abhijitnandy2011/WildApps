@@ -51,14 +51,6 @@ builder.Services.AddAuthentication(options =>
     });
 
 
-builder.Services.AddIdentity<RAppUser, IdentityRole>()
-    .AddEntityFrameworkStores<RDBContext>();
-
-builder.Services.Configure<IdentityOptions>(options =>
-{
-    options.SignIn.RequireConfirmedEmail = true;
-    options.User.RequireUniqueEmail = true;
-});
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 
@@ -75,7 +67,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//app.MapIdentityApi<RAppUser>();
 
 app.UseHttpsRedirection();
 

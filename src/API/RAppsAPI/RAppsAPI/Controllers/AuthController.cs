@@ -1,9 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Identity.Client;
 using Microsoft.IdentityModel.Tokens;
 using RAppsAPI.Entities;
 using RAppsAPI.Models;
@@ -16,23 +13,9 @@ namespace RAppsAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AuthController(
-        UserManager<RAppUser> _userManager,
-        SignInManager<RAppUser> _signInManager,
-        IConfiguration configuration) : ControllerBase
-    {
-        /*
-         * private readonly UserManager<RAppUser> _userManager;
-        private readonly SignInManager<RAppUser> _signInManager;
-        public AuthController(UserManager<RAppUser> userManager, SignInManager<RAppUser> signInManager)
-        {  
-            this._userManager = userManager;
-            this._signInManager = signInManager;
-        }
-        */
-
-        
-        [HttpPost("register")]
+    public class AuthController(IConfiguration configuration) : ControllerBase
+    {        
+        /*[HttpPost("register")]
         // This endpoint will not store any pwd.
         // It will create an user entry with given username & email
         // and send an email to confirm the email. User login will be disabled
@@ -79,7 +62,7 @@ namespace RAppsAPI.Controllers
             var result = await _userManager.ConfirmEmailAsync(user, token);
             return (result.Succeeded ? Ok("") : StatusCode(500, "Error"));
         }
-
+        */
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(string username, string password)
@@ -92,35 +75,37 @@ namespace RAppsAPI.Controllers
             {
                 return BadRequest("Invalid Credentials");
             }
-            var user = await _userManager.FindByNameAsync(username);
-            if (user == null)
-            {
-                return BadRequest($"Failed to login user: {username}");
-            }
-            // TODO: Check if user row is active before signing user in
-            bool isUserActive = true;
-            if(!isUserActive)
-            {
-                return BadRequest($"Failed to login user: {username}");
-            }
-            // TODO: Check if user can sign-in with Identity. If email not verified, no signIn allowed.
-            // Sign in the user
-            //await _signInManager.SignInAsync(user, false);    // TODO: Set Role, capture login time
-            bool isAuthenticated = User.Identity!.IsAuthenticated;  
-            /*if (!isAuthenticated)
-            {
-                return BadRequest($"Failed to authenticate user: {username}");
-            }*/
+            /* var user = await _userManager.FindByNameAsync(username);
+             if (user == null)
+             {
+                 return BadRequest($"Failed to login user: {username}");
+             }
+             // TODO: Check if user row is active before signing user in
+             bool isUserActive = true;
+             if(!isUserActive)
+             {
+                 return BadRequest($"Failed to login user: {username}");
+             }
+             // TODO: Check if user can sign-in with Identity. If email not verified, no signIn allowed.
+             // Sign in the user
+             //await _signInManager.SignInAsync(user, false);    // TODO: Set Role, capture login time
+             bool isAuthenticated = User.Identity!.IsAuthenticated;  
+             /*if (!isAuthenticated)
+             {
+                 return BadRequest($"Failed to authenticate user: {username}");
+             }*/
 
             // Create & send back token
-            var roles = await _userManager.GetRolesAsync(user);
+            //var roles = await _userManager.GetRolesAsync(user);
+            var roles = new List<string> { "Admin" };
+            var user = new User { UserName = "qw" };
             string token = CreateToken(user, roles);
             // Role is retrieved from DB & set in JWT. 
             return Ok(token);
         }
 
 
-        private string CreateToken(RAppUser user, IList<string> roles)
+        private string CreateToken(User user, IList<string> roles)
         {
             
 
