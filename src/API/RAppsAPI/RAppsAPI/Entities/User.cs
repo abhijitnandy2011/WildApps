@@ -16,7 +16,7 @@ namespace RAppsAPI.Entities
         public DateTime CreatedOn { get; set; }
         public DateTime? LastLoginOn { get; set; }
         public int RStatus { get; set; } = 1;
-        public Guid RoleId { get; set; }
-        public Role Role { get; set; } = null!;
+        public virtual Guid RoleId { get; set; }
+        public virtual Role Role { get; set; } = null!;
     }
 }
