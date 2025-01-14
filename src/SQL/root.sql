@@ -25,7 +25,7 @@ CREATE TYPE dbo.UDT_Sequence FROM smallint NOT NULL;
 
 CREATE TYPE dbo.UDT_CellRow FROM int NOT NULL;
 CREATE TYPE dbo.UDT_CellColumn FROM int NOT NULL;
-CREATE TYPE dbo.UDT_CellValue FROM [nvarchar](512) NOT NULL;
+CREATE TYPE dbo.UDT_CellValue FROM [nvarchar](2048) NOT NULL;
 CREATE TYPE dbo.UDT_CellFormula FROM [nvarchar](1024) NOT NULL;
 CREATE TYPE dbo.UDT_CellFormat FROM [nvarchar](128) NOT NULL;
 CREATE TYPE dbo.UDT_CellStyle FROM [nvarchar](1024) NOT NULL;
@@ -51,7 +51,7 @@ In namespace dbo:
 
 -- Entities
 -- Only one entry - each row can be a property instead of each column
-CREATE TABLE WildRoot(   
+CREATE TABLE RAppsRoot(   
     ID 
     CompanyName
     CreatedBy
@@ -61,20 +61,49 @@ CREATE TABLE WildRoot(
     RStatus
 )
 
--- Basic entities have V infront, to prevent name clashes in queries
+-- Basic entities have V infront for Virtual, to prevent name clashes in queries
 -- Users 1 to 1000 are various system related users & admins
 -- From 1001, we have real users
-CREATE TABLE VUser(
-    ID
-    Name
-    Roles    
-    LastLoggedIn
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
+CREATE TABLE [dbo].[VUsers](
+	[Id] [uniqueidentifier] NOT NULL,
+	[UserName] [nvarchar](max) NOT NULL,
+	[FirstName] [nvarchar](max) NOT NULL,
+	[LastName] [nvarchar](max) NULL,
+	[FullName] [nvarchar](max) NOT NULL,
+	[Email] [nvarchar](max) NOT NULL,
+	[EmailConfirmed] [bit] NOT NULL,
+	[EmailToken] [nvarchar](max) NOT NULL,
+	[Location] [nvarchar](max) NOT NULL,
+	[CreatedOn] [datetime2](7) NOT NULL,
+	[RStatus] [int] NOT NULL,
+	[RoleId] [uniqueidentifier] NOT NULL,
+	[LastLoginOn] [datetime2](7) NULL,
+ CONSTRAINT [PK_VUsers] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[VUsers]  WITH CHECK ADD  CONSTRAINT [FK_VUsers_VRoles_RoleId] FOREIGN KEY([RoleId])
+REFERENCES [dbo].[VRoles] ([Id])
+ON DELETE CASCADE
+GO
+
+ALTER TABLE [dbo].[VUsers] CHECK CONSTRAINT [FK_VUsers_VRoles_RoleId]
+
+
+-- VUser Roles
+CREATE TABLE [dbo].[VRoles](
+	[Id] [uniqueidentifier] NOT NULL,
+	[Name] [nvarchar](max) NOT NULL,
+	[Description] [nvarchar](max) NOT NULL,
+ CONSTRAINT [PK_VRoles] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
 
 
 -- Pretty simple system now, assigned to 1 person, no multiple logins.
@@ -82,7 +111,7 @@ CREATE TABLE VUser(
 -- Used to manage files/folders, set storage limits, what file types can be created,
 -- provide default set of apps & files
 -- Also manage desktop settings. App settings are managed by the app itself in its own tables.
-CREATE TABLE VSystem(
+CREATE TABLE VSystems(
     ID  int NOT NULL IDENTITY(1,1),
     Name [nvarchar](1024) NULL,
     AssignedTo int NULL,   -- currently assigned to - VUserID
@@ -91,14 +120,14 @@ CREATE TABLE VSystem(
     LastUpdatedBy    UDT_Number_Int_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus smallint NOT NULL,
-    CONSTRAINT PK_VSystem PRIMARY KEY (Id)
+    CONSTRAINT PK_VSystems PRIMARY KEY (Id)
 )
 
 -- An app can be installed in many systems
 -- Has unique settings for each system.
 -- Default apps like desktop & File Browser maintain their settings here in JSON or
 -- in their own tables by System/User.
-CREATE TABLE VApp(
+CREATE TABLE VApps(
     ID,
     Name,
     Owner,
@@ -110,7 +139,7 @@ CREATE TABLE VApp(
     RStatus
 )
 
-CREATE TABLE VFolder(
+CREATE TABLE VFolders(
     ID,
     Name,
     CreatedBy
@@ -126,7 +155,7 @@ CREATE TABLE VFolder(
 -- Various types of files, spreadsheets, docs, text files, shortcuts to other files in same
 -- or another system(shared file)
 -- File contents are managed in one or more DB tables, like spreadsheets will need Row/Column, tables, etc
-CREATE TABLE VFile(
+CREATE TABLE VFiles(
     ID,
     Name,
     VFileTypeID,
@@ -142,7 +171,7 @@ CREATE TABLE VFile(
 
 -- Various file types in the System, default types & App installed types.
 -- Shared file is not a type - its a fundamental attribute of the file diff from type.
-CREATE TABLE FileType(
+CREATE TABLE FileTypes(
     ID,    
     Name           -- Various file types in the system
     CreatedBy    -- VUserID i.e. ID from the VUser table
@@ -154,7 +183,7 @@ CREATE TABLE FileType(
 
 
 -- Lists all versions for all files
-CREATE TABLE FileVersion(
+CREATE TABLE FileVersions(
     ID,    
     VFileID,
     Version,
@@ -199,7 +228,7 @@ CREATE TABLE SystemUser(
 
 -- Which system has which apps for which user
 -- Apps store user settings here or mapped in their own tables.
--- File Browser app stores settings here as JSON. WildSheets might use its own tables.
+-- File Browser app stores settings here as JSON. RSheets might use its own tables.
 -- Apps should not have direct access to this table as other apps settings will be visible!
 CREATE TABLE SystemUserApp(
     ID,   
@@ -260,23 +289,23 @@ CREATE TABLE FileTypeApp(
 
 -----------------------------------------
 
--- Wild Sheets App(Wild Platform, spreadsheet app)
+-- RSheets App(R Platform, spreadsheet app)
 -- Has app specific tables to manage its files
--- Maybe own namespace 'wsa'
+-- Maybe own namespace 'rsa'
 -- Each object type has its own tables
 -- Sheet, Cell, Table is needed now. Later PivotTable, Chart, Image, Macro etc.
 
-CREATE NAMESPACE wsa;
+CREATE NAMESPACE rsa;
 
 -- Workbook level settings like which sheet was last opened, which cell was last in focus
 -- Last saved etc. These settings are not stored in VFile as that has only File generic stuff.
--- When a WildSheet file is created using the WildSheets app, it will make an entry here to store its data.
+-- When a RSheet file is created using the RSheets app, it will make an entry here to store its data.
 -- Its similar to making an entry in the file system for a file - without this there is no data persistence.
--- This is the root for the data storage of the WildSheet file. Root of the WildSheet file data model.
+-- This is the root for the data storage of the RSheet file. Root of the RSheet file data model.
 -- Other apps will have other models in other structs optimized for their own data.
 -- A workbook is in a file.
-DROP TABLE Workbook;
-CREATE TABLE Workbook(
+DROP TABLE rsa.Workbooks;
+CREATE TABLE rsa.Workbooks(
     ID               UDT_ID IDENTITY(1,1),
     VFileID          UDT_ID,    
     Name             UDT_Name,  -- same as VFile.Name
@@ -293,8 +322,8 @@ CREATE TABLE Workbook(
 );
 
 
-DROP TABLE Sheet;
-CREATE TABLE Sheet(
+DROP TABLE rsa.Sheets;
+CREATE TABLE rsa.Sheets(
     ID               UDT_ID IDENTITY(1,1),
     WorkbookID       UDT_ID,
     Name             UDT_Name,
@@ -310,13 +339,13 @@ CREATE TABLE Sheet(
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus,
     CONSTRAINT PK_SheetID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Workbook_Sheet FOREIGN KEY (WorkbookID) REFERENCES Workbook(ID)
+    CONSTRAINT FK_Workbooks_Sheets_WorkbookID FOREIGN KEY (WorkbookID) REFERENCES Workbook(ID)
 );
 
 
 -- Excel tables for all files in the system
-DROP TABLE XlTable;
-CREATE TABLE XlTable(
+DROP TABLE rsa.XlTables;
+CREATE TABLE rsa.XlTables(
     ID               UDT_ID IDENTITY(1,1),
     SheetID          UDT_ID,   
     Name             UDT_Name_med,
@@ -336,16 +365,15 @@ CREATE TABLE XlTable(
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus
     CONSTRAINT PK_XlTableID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Sheet_XlTable FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
+    CONSTRAINT FK_Sheets_XlTables_SheetID FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
 );
 
 
 -- Cell data for current version
 -- Only cell data is split between current version and older versions as its a lot.
 -- Querying easier with less data.
-DROP TABLE Cell;
-CREATE TABLE Cell(
-    ID               UDT_ID IDENTITY(1,1),
+DROP TABLE rsa.Cells;
+CREATE TABLE rsa.Cells(
     SheetID          UDT_ID,
     RowNum           UDT_CellRow,
     ColNum           UDT_CellColumn,
@@ -359,14 +387,13 @@ CREATE TABLE Cell(
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus
     CONSTRAINT PK_CellID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Sheet_Cell FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
+    CONSTRAINT FK_Sheets_Cells_SheetID FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
 );
 
 -- Cell data for older versions. This table will get huge so we dont want to regularly query this.
 -- More of historical data.
-DROP TABLE CellOldVer;
-CREATE TABLE CellOldVer(
-    ID               UDT_ID IDENTITY(1,1),    -- this can grow really big later as it will have cells for all workbooks ever, outgrowing int
+DROP TABLE rsa.CellOldVers;
+CREATE TABLE rsa.CellOldVers(
     VersionID        UDT_ID,   
     SheetID          UDT_ID,
     RowNum           UDT_CellRow,
@@ -381,30 +408,44 @@ CREATE TABLE CellOldVer(
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus
     CONSTRAINT PK_CellOldVerID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Sheet_CellOldVer FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
+    CONSTRAINT FK_Sheets_CellOldVers_SheetID FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
 );
+
+
+
+
+--------------------------------------------------------------------------------
+-- Initial scripts for creating System VUsers like sysadmin etc
+
+-- Create Admin
+-- INSERT INTO VUsers() VALUES ()
+
+-- Create a test user with Visitor rights
+
+
+
 
 
 --------------------------------------------------------------------------------
 -- Recreating tables
 
 -- Clearing all table data(except Workbooks)
-DELETE FROM dbo.Cell;
-DELETE FROM dbo.CellOldVer;
-DELETE FROM dbo.Sheet;
-DELETE FROM dbo.XlTable;
+DELETE FROM rsa.Cells;
+DELETE FROM rsa.CellOldVers;
+DELETE FROM rsa.Sheets;
+DELETE FROM rsa.XlTables;
 
 -- Dropping all constraints
 -- Usually not needed, only dropping the constraints for the tables being modified are often enough
-ALTER TABLE [dbo].[Sheet] DROP CONSTRAINT [FK_Workbook_Sheet];
-ALTER TABLE [dbo].[XlTable] DROP CONSTRAINT [FK_Sheet_XlTable];
-ALTER TABLE [dbo].[Cell] DROP CONSTRAINT [FK_Sheet_Cell];
-ALTER TABLE [dbo].[CellOldVer] DROP CONSTRAINT [FK_Sheet_CellOldVer];
-ALTER TABLE [dbo].[CellOldVer] DROP CONSTRAINT [PK_CellOldVerID];
-ALTER TABLE [dbo].[Cell] DROP CONSTRAINT [PK_CellID];
-ALTER TABLE [dbo].[XlTable] DROP CONSTRAINT [PK_XlTableID];
-ALTER TABLE [dbo].[Workbook] DROP CONSTRAINT [PK_WorkbookID];
-ALTER TABLE [dbo].[Sheet] DROP CONSTRAINT [PK_SheetID];
+ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_Workbooks_Sheets_WorkbookID];
+ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_Sheets_XlTables_SheetID];
+ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_Sheets_Cells_SheetID];
+ALTER TABLE [rsa].[CellOldVers] DROP CONSTRAINT [FK_Sheets_CellOldVers_SheetID];
+ALTER TABLE [rsa].[CellOldVers] DROP CONSTRAINT [PK_CellOldVerID];
+ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [PK_CellID];
+ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [PK_XlTableID];
+ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [PK_WorkbookID];
+ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [PK_SheetID];
 
 --------------------------
 
