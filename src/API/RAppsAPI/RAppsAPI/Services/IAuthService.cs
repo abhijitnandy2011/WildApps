@@ -5,7 +5,7 @@ namespace RAppsAPI.Services
 {
     public interface IAuthService
     {
-        Task<VUser?> RegisterAsync(RegisterUserDto request);
+        Task<VUsers?> RegisterAsync(RegisterUserDto request);
         Task<string?> LoginAsync(string username, string password);
     }
 }

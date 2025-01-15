@@ -34,20 +34,20 @@ namespace RAppsAPI.Controllers
             // NOTE: Use a service
             try
             {
-                Role? uaRole = dbContext.Roles.Where(role => role.Name == DBConstants.RoleName.Unassigned).FirstOrDefault();
+                var uaRole = dbContext.Roles.Where(role => role.Name == DBConstants.RoleName.Unassigned).FirstOrDefault();
                 if (uaRole == null)
                 {
                     // TODO: Log the detailed error: failed to set role
                     return BadRequest("Failed to register");
                 }
                 var emailToken = Guid.NewGuid().ToString();
-                var user = new User()
+                var user = new VUsers()
                 {
                     UserName = request.Username,
                     Email = request.Email,
                     EmailConfirmed = false,
                     EmailToken = emailToken,
-                    CreatedOn = DateTime.Now,
+                    CreatedDate = DateTime.Now,
                     Role = uaRole,
                     RStatus = (int)DBConstants.RStatus.Inactive    // row disabled(check with data model convention, use constant)
                 };
@@ -109,8 +109,7 @@ namespace RAppsAPI.Controllers
         public async Task<IActionResult> Login(string username, string password)
         {
             // TODO: User row has to be activated by Admin, authenticated API needed for Admin Role for this            
-            // TODO: Authenticate username/pwd thru auth server
-            // TODO: Get user from app db first & check if user active, can sign-in first? Or first do username/pwd authentication?
+            // TODO: Authenticate username/pwd thru auth server            
             try
             {
                 var success = AuthenticateUser(username, password);  // TODO: This must send back a profile DTO to fill missing user felds
@@ -134,7 +133,7 @@ namespace RAppsAPI.Controllers
                     return BadRequest($"Invalid Credentials");
                 }
                 // Sign in the user, role will be updated by Admin in backend
-                user.LastLoginOn = DateTime.Now;   
+                user.LastLoginDate = DateTime.Now;   
                 await dbContext.SaveChangesAsync();
                 // Create & send back token
                 var userRole = user.Role;
@@ -150,7 +149,7 @@ namespace RAppsAPI.Controllers
         }
 
 
-        private string CreateToken(User user)
+        private string CreateToken(VUsers user)
         {
             var claims = new List<Claim>
             {

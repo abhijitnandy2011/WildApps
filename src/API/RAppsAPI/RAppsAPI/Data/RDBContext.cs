@@ -7,8 +7,8 @@ namespace RAppsAPI.Data
 {
     public class RDBContext(DbContextOptions<RDBContext> options) : DbContext(options)
     {
-        public DbSet<VUser> Users { get; set; }
-        public DbSet<VRole> Roles { get; set; }       
+        public DbSet<VUsers> Users { get; set; }
+        public DbSet<VRoles> Roles { get; set; }       
       
     }
 }
