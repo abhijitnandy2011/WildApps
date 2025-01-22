@@ -11,14 +11,14 @@ namespace RAppsAPI.Entities
         public string FullName { get; set; } = string.Empty;        
         public string Email { get; set; } = string.Empty;
         public bool EmailConfirmed { get; set; } = false;
-        public string EmailToken {  get; set; } = string.Empty;
+        public string? EmailToken {  get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
-        public DateTime CreatedBy { get; set; }
-        public DateTime CreatedDate { get; set; }
-        public DateTime LastUpdatedBy { get; set; }
-        public DateTime LastUpdatedDate { get; set; }
         public DateTime? LastLoginDate { get; set; }
-        public int RStatus { get; set; } = 1;
+        public Guid CreatedBy { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public Guid? LastUpdatedBy { get; set; }
+        public DateTime? LastUpdatedDate { get; set; }        
+        public byte RStatus { get; set; } = 1;
         public virtual Guid RoleId { get; set; }
         public virtual VRoles Role { get; set; } = null!;
     }

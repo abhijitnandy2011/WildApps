@@ -1,0 +1,54 @@
+-- Seed data
+
+SELECT NEWID()
+
+-- Roles(drop constraints on this table first, restore later)
+INSERT INTO dbo.VRoles VALUES ('3A798A4B-6FF5-4570-B77B-D3FEF8FF1609', 'Unassigned', 'Unassigned', '1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D', GETDATE(), NULL, NULL, 2)
+INSERT INTO dbo.VRoles VALUES ('BD08482C-5CFF-4BDB-874C-0B25EA448E1B', 'Admin', 'Admin',  '1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D', GETDATE(), NULL, NULL, 2)
+INSERT INTO dbo.VRoles VALUES ('D5CD880A-0D67-4356-B316-8610E6E80780', 'Visitor', 'Visitor',  '1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D', GETDATE(), NULL, NULL, 2)
+
+
+-- Users
+-- Admin
+INSERT INTO dbo.VUsers VALUES (
+'1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D',
+'Admin',
+'Admin',
+NULL,
+'Admin',
+'admin@rapps.com',
+1,
+NULL,
+'BLR',
+'BD08482C-5CFF-4BDB-874C-0B25EA448E1B',
+GETDATE(),
+'1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D',
+GETDATE(),
+NULL, 
+NULL,
+2
+)
+
+-- Test user, visitor role
+INSERT INTO dbo.VUsers VALUES (
+'C37E4AB2-3D39-4F11-8B8D-5C63E8889928',
+'vis',
+'Visitor',
+NULL,
+'Visitor',
+'visitor@rapps.com',
+1,
+NULL,
+'BLR',
+'D5CD880A-0D67-4356-B316-8610E6E80780',
+GETDATE(),
+'1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D',
+GETDATE(),
+NULL, 
+NULL,
+2
+)
+
+
+-- Create root folder and readme file
+

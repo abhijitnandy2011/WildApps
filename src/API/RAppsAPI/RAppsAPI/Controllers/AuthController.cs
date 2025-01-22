@@ -88,7 +88,7 @@ namespace RAppsAPI.Controllers
                     return BadRequest("Invalid");
                 }
                 user.EmailConfirmed = true;
-                user.EmailToken = string.Empty;
+                user.EmailToken = null;
                 user.RStatus = (int)DBConstants.RStatus.Active;
                 await dbContext.SaveChangesAsync();
                 //var result = await _userManager.ConfirmEmailAsync(user, token);
