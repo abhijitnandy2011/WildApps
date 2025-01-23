@@ -30,6 +30,7 @@ CREATE TYPE dbo.UDT_RowStatus FROM [tinyint] NOT NULL;
 CREATE TYPE dbo.UDT_Number_Int FROM int NOT NULL;
 CREATE TYPE dbo.UDT_Number_Int_Opt FROM int NULL;
 CREATE TYPE dbo.UDT_Sequence FROM smallint NOT NULL; 
+CREATE TYPE dbo.UDT_ObjectType FROM smallint NOT NULL; 
 
 CREATE TYPE dbo.UDT_CellRow FROM int NOT NULL;
 CREATE TYPE dbo.UDT_CellColumn FROM int NOT NULL;
@@ -39,6 +40,8 @@ CREATE TYPE dbo.UDT_CellFormat FROM [nvarchar](128) NOT NULL;
 CREATE TYPE dbo.UDT_CellStyle FROM [nvarchar](1024) NOT NULL;
 
 CREATE TYPE dbo.UDT_Bool FROM bit NOT NULL;
+
+CREATE TYPE dbo.UDT_Path FROM [nvarchar](4096) NOT NULL;
 
 
 -- Schema reqd later for app
@@ -128,13 +131,11 @@ CREATE TABLE dbo.VApps(
 
 
 
-
 DROP TABLE dbo.VFolders;
 CREATE TABLE dbo.VFolders(
     ID            UDT_ID IDENTITY(1,1),
     Name          UDT_Name_Big,
 	Attrs  		  UDT_Name,
-	Link          UDT_ID_Opt,        -- if shortcut, the pointed to folder ID, self ref
     CreatedBy       [uniqueidentifier] NOT NULL,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    [uniqueidentifier] NULL,
@@ -144,14 +145,12 @@ CREATE TABLE dbo.VFolders(
 )
 
 
-
 DROP TABLE dbo.VFiles;
 CREATE TABLE dbo.VFiles(
     ID            UDT_ID IDENTITY(1,1),
     Name          UDT_Name_Big,
     FileTypeID    UDT_ID, -- to forward to proper webapp when opening or getting file info
     Attrs  		  UDT_Name,
-	Link          UDT_ID_Opt,        -- if shortcut, the pointed to file ID, self ref
     CreatedBy       [uniqueidentifier] NOT NULL,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    [uniqueidentifier] NULL,
@@ -210,18 +209,33 @@ CREATE TABLE dbo.SystemUserApps(
 )
 
 
+-- TODO
 DROP TABLE dbo.SystemFolderFiles;
 CREATE TABLE dbo.SystemFolderFiles(
     ID               UDT_ID IDENTITY(1,1),    
     VSystemID        UDT_ID,
     VFolderID        UDT_ID,
-    VFileID          UDT_ID,
+    VObjectID        UDT_ID,    -- could be file or folder ID
+	VObjectType      UDT_ObjectType,   -- file, folder or shortcut(1,2,3 respec, TODO: provide constants?) 
     CreatedBy        [uniqueidentifier] NOT NULL,
     CreatedDate       UDT_DateTime,
     LastUpdatedBy    [uniqueidentifier] NULL,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
 	CONSTRAINT PK_SystemFolderFilesID PRIMARY KEY (ID)
+)
+
+-- TODO - union of IDs constraint!
+--ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VFolders_Link FOREIGN KEY (Link) REFERENCES dbo.VFolders(ID)
+
+
+
+-- TODO
+-- Not all files will be created via upload so this is not in VFiles. 
+-- Those which are will have their original file upload path saved here.
+CREATE TABLE dbo.FileUploads(
+	VFileID
+	UploadPath    UDT_Path,
 )
 
 
@@ -351,11 +365,9 @@ ALTER TABLE dbo.VApps ADD CONSTRAINT FK_VApps_VUsers_Owner FOREIGN KEY (Owner) R
 ALTER TABLE dbo.VApps ADD CONSTRAINT FK_VApps_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
 ALTER TABLE dbo.VApps ADD CONSTRAINT FK_VApps_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
 
-ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VFolders_Link FOREIGN KEY (Link) REFERENCES dbo.VFolders(ID)
 ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
 ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
 
-ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_VFiles_Link FOREIGN KEY (Link) REFERENCES dbo.VFiles(ID)
 ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_FileTypes_FileTypeID FOREIGN KEY (FileTypeID) REFERENCES dbo.FileTypes(ID) 
 ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
 ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)

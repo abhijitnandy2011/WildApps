@@ -51,4 +51,20 @@ NULL,
 
 
 -- Create root folder and readme file
-
+INSERT INTO dbo.VFolders
+(
+Name,       
+Attrs,  		
+Link,        
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+'root',
+'',
+NULL,
+'1B2A6043-C6EB-4B68-93FC-0BBD43C5CF9D',
+GETDATE(),
+2
+)
