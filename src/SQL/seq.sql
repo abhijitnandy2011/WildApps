@@ -41,7 +41,9 @@ CREATE TYPE dbo.UDT_CellStyle FROM [nvarchar](1024) NOT NULL;
 
 CREATE TYPE dbo.UDT_Bool FROM bit NOT NULL;
 
-CREATE TYPE dbo.UDT_Path FROM [nvarchar](4096) NOT NULL;
+CREATE TYPE dbo.UDT_Path FROM [nvarchar](max) NOT NULL;
+CREATE TYPE dbo.UDT_LogDescription FROM [nvarchar](max) NOT NULL;
+CREATE TYPE dbo.UDT_Description FROM [nvarchar](max) NOT NULL;
 
 
 -- Schema reqd later for app
@@ -53,10 +55,10 @@ DROP TABLE dbo.RAppsRoot;
 CREATE TABLE dbo.RAppsRoot(   
     ID            UDT_ID,
     CompanyName   UDT_Name_Big,
-	RootFolderID  UDT_ID,
-    [CreatedBy]      [uniqueidentifier] NOT NULL,
+	RootFolderID  UDT_ID,          -- entire file system's root
+    [CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
-	[LastUpdatedBy]  [uniqueidentifier] NULL,
+	[LastUpdatedBy]  UDT_ID_Opt,
 	[LastUpdatedDate] UDT_DateTime_Opt,
 	[RStatus] UDT_RowStatus,
 	CONSTRAINT [PK_RAppsRoot] PRIMARY KEY (ID)
@@ -67,7 +69,7 @@ CREATE TABLE dbo.RAppsRoot(
 -- Once the Admin role & Admin user is created, no need to drop/re-create any more constraints
 DROP TABLE [dbo].[VUsers];
 CREATE TABLE [dbo].[VUsers](
-	[ID] [uniqueidentifier] NOT NULL,
+	[ID] UDT_ID,
 	[UserName] UDT_Name,
 	[FirstName] UDT_Name,
 	[LastName] UDT_Name_Opt,
@@ -78,9 +80,9 @@ CREATE TABLE [dbo].[VUsers](
 	[Location] UDT_Name_med,
 	[RoleID]    [uniqueidentifier] NOT NULL,
 	[LastLoginDate]  UDT_DateTime_Opt,
-	[CreatedBy]      [uniqueidentifier] NOT NULL,  -- self reference
+	[CreatedBy]      UDT_ID,  -- self reference
 	[CreatedDate]    UDT_DateTime,
-	[LastUpdatedBy]  [uniqueidentifier] NULL,      -- self reference
+	[LastUpdatedBy]  UDT_ID_Opt,      -- self reference
 	[LastUpdatedDate] UDT_DateTime_Opt,
 	[RStatus] UDT_RowStatus,
 	CONSTRAINT [PK_VUsers] PRIMARY KEY (ID)
@@ -92,9 +94,9 @@ CREATE TABLE [dbo].[VRoles](
 	[ID] [uniqueidentifier] NOT NULL,
 	[Name]   UDT_Name,
 	[Description]  UDT_Name,
-	[CreatedBy]      [uniqueidentifier] NOT NULL,
+	[CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
-	[LastUpdatedBy]  [uniqueidentifier] NULL,
+	[LastUpdatedBy]  UDT_ID_Opt,
 	[LastUpdatedDate] UDT_DateTime_Opt,
 	[RStatus] UDT_RowStatus,
 	CONSTRAINT [PK_VRoles] PRIMARY KEY (ID)	
@@ -105,10 +107,11 @@ DROP TABLE [dbo].[VSystems];
 CREATE TABLE dbo.VSystems(
     ID           UDT_ID IDENTITY(1,1),
     Name         UDT_Name_Big,
-    AssignedTo    [uniqueidentifier] NULL,   -- not assigned/currently assigned to - VUserID
-    [CreatedBy]      [uniqueidentifier] NOT NULL,
+    AssignedTo    UDT_ID_Opt,   -- not assigned/currently assigned to - VUserID
+	RootFolderID  UDT_ID,                 -- only this system's filesystem root which is some node in the main filesystem tree
+    [CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
-	[LastUpdatedBy]  [uniqueidentifier] NULL,
+	[LastUpdatedBy]  UDT_ID_Opt,
 	[LastUpdatedDate] UDT_DateTime_Opt,
 	[RStatus] UDT_RowStatus,
     CONSTRAINT PK_VSystems PRIMARY KEY (ID),	
@@ -119,11 +122,11 @@ DROP TABLE dbo.VApps;
 CREATE TABLE dbo.VApps(
     ID            UDT_ID IDENTITY(1,1),
     Name          UDT_Name_Big,
-    Owner         [uniqueidentifier] NOT NULL,  -- which VUser owns/administers the app
+    Owner         UDT_ID,  -- which VUser owns/administers the app
     Settings       UDT_Name_Big,
-    [CreatedBy]      [uniqueidentifier] NOT NULL,
+    [CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
-	[LastUpdatedBy]  [uniqueidentifier] NULL,
+	[LastUpdatedBy]  UDT_ID_Opt,
 	[LastUpdatedDate] UDT_DateTime_Opt,
 	[RStatus] UDT_RowStatus,
 	CONSTRAINT PK_VApps PRIMARY KEY (ID)
@@ -136,9 +139,9 @@ CREATE TABLE dbo.VFolders(
     ID            UDT_ID IDENTITY(1,1),
     Name          UDT_Name_Big,
 	Attrs  		  UDT_Name,
-    CreatedBy       [uniqueidentifier] NOT NULL,
+    CreatedBy       UDT_ID,
     CreatedDate      UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus,
 	CONSTRAINT PK_VFolders PRIMARY KEY (ID)
@@ -151,9 +154,9 @@ CREATE TABLE dbo.VFiles(
     Name          UDT_Name_Big,
     FileTypeID    UDT_ID, -- to forward to proper webapp when opening or getting file info
     Attrs  		  UDT_Name,
-    CreatedBy       [uniqueidentifier] NOT NULL,
+    CreatedBy       UDT_ID,
     CreatedDate      UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus,
 	CONSTRAINT PK_VFiles PRIMARY KEY (ID)
@@ -165,13 +168,39 @@ DROP TABLE dbo.FileTypes;
 CREATE TABLE dbo.FileTypes(
     ID        UDT_ID IDENTITY(1,1),    
     Name      UDT_Name,     -- Various file types in the system
-    CreatedBy       [uniqueidentifier] NOT NULL,    -- VUserID i.e. ID from the VUser table
+    CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
     CreatedDate      UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus,
 	CONSTRAINT PK_FileTypes PRIMARY KEY (ID)	
 )
+
+
+DROP TABLE dbo.AuthLogs;
+CREATE TABLE dbo.AuthLogs(    
+	ID            UDT_ID IDENTITY(1,1),    
+	Module        UDT_Name,     -- Various file types in the system
+    ErrorMsg      UDT_Name_Med,     -- Various file types in the system
+	Description   UDT_LogDescription,     -- Various file types in the system
+    CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+	CONSTRAINT PK_AuthLogs PRIMARY KEY (ID)	
+)
+
+
+
+DROP TABLE dbo.SysLogs;
+CREATE TABLE dbo.SysLogs(    
+	ID            UDT_ID IDENTITY(1,1),    
+	Module        UDT_Name,     -- Various file types in the system
+    ErrorMsg      UDT_Name_Med,     -- Various file types in the system
+	Description   UDT_LogDescription,     -- Various file types in the system
+    CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+	CONSTRAINT PK_SysLogs PRIMARY KEY (ID)	
+)
+
 
 
 -----------------------------------
@@ -182,11 +211,11 @@ DROP table dbo.SystemUsers;
 CREATE TABLE dbo.SystemUsers(
     ID             UDT_ID IDENTITY(1,1),    
     VSystemID      UDT_ID,
-    VUserID        [uniqueidentifier] NOT NULL,
-    Profile        UDT_Name_Big, -- user settings on a specific system, maybe needed later, can be expanded to store settings as JSON later.
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    VUserID        UDT_ID,
+    Profile        UDT_Name_Big, -- user settings on a specific system, maybe needed later, can be expanded to store settings as JSON later or more columns in this table
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
 	CONSTRAINT PK_SystemUsersID PRIMARY KEY (ID)    
@@ -197,31 +226,31 @@ DROP TABLE dbo.SystemUserApps;
 CREATE TABLE dbo.SystemUserApps(
     ID               UDT_ID IDENTITY(1,1),    
     VSystemID        UDT_ID,
-    VUserID          [uniqueidentifier] NOT NULL,
+    VUserID          UDT_ID,
     VAppID           UDT_ID,
     Settings         UDT_Name_Big,
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
 	CONSTRAINT PK_SystemUserAppsID PRIMARY KEY (ID),
 )
 
 
--- TODO
 DROP TABLE dbo.SystemFolderFiles;
 CREATE TABLE dbo.SystemFolderFiles(
     ID               UDT_ID IDENTITY(1,1),    
     VSystemID        UDT_ID,
     VFolderID        UDT_ID,
     VObjectID        UDT_ID,    -- could be file or folder ID
-	VObjectType      UDT_ObjectType,   -- file, folder or shortcut(1,2,3 respec, TODO: provide constants?) 
-    CreatedBy        [uniqueidentifier] NOT NULL,
-    CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
+	VObjectType      UDT_ObjectType,   -- tells type: file, folder or shortcut(call dbo.CONST('VOBJECTTYPE_FOLDER') etc)
+	CheckedOutBy     UDT_ID_Opt,   -- NULL means not checked out
+    CreatedBy        UDT_ID,
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
 	CONSTRAINT PK_SystemFolderFilesID PRIMARY KEY (ID)
 )
 
@@ -229,13 +258,22 @@ CREATE TABLE dbo.SystemFolderFiles(
 --ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VFolders_Link FOREIGN KEY (Link) REFERENCES dbo.VFolders(ID)
 
 
-
--- TODO
 -- Not all files will be created via upload so this is not in VFiles. 
 -- Those which are will have their original file upload path saved here.
+DROP TABLE dbo.FileUploads;
 CREATE TABLE dbo.FileUploads(
-	VFileID
-	UploadPath    UDT_Path,
+	ID            UDT_ID IDENTITY(1,1),  
+	VFileID       UDT_ID,
+	VAppID        UDT_ID,    -- user selected app ID to indicate which app the file is meant for
+	FileName      UDT_Name_med,
+	Description   UDT_Description,
+	FilePath      UDT_Path,
+	CreatedBy        UDT_ID,
+    CreatedDate       UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate   UDT_DateTime_Opt,
+    RStatus           UDT_RowStatus,
+	CONSTRAINT PK_FileUploadsID PRIMARY KEY (ID),
 )
 
 
@@ -244,9 +282,9 @@ CREATE TABLE dbo.FileTypeApps(
     ID                UDT_ID IDENTITY(1,1),    
     VFileTypeID       UDT_ID,
     VAppID            UDT_ID,
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
 	CONSTRAINT PK_FileTypeAppsID PRIMARY KEY (ID),
@@ -264,9 +302,9 @@ CREATE TABLE rsa.Workbooks(
     LastFocusCellRow  UDT_CellRow,
     LastFocusCellCol  UDT_CellColumn,
     Settings          UDT_Settings_Opt,   -- Other settings go here in JSON string format - can be columnized if necessary later for searching/indexing faster
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
     CONSTRAINT PK_RSA_WorkbooksID PRIMARY KEY (ID)
@@ -284,9 +322,9 @@ CREATE TABLE rsa.Sheets(
     StartColNum      UDT_CellColumn,
     EndRowNum        UDT_CellRow,
     EndColNum        UDT_CellColumn,
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
     CONSTRAINT PK_RSA_SheetID PRIMARY KEY (ID),
@@ -308,9 +346,9 @@ CREATE TABLE rsa.XlTables(
     BandedRows       UDT_Bool,
     BandedColumns    UDT_Bool,
     FilterButton     UDT_Bool,
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
     CONSTRAINT PK_RSA_XlTableID PRIMARY KEY (ID),
@@ -326,9 +364,9 @@ CREATE TABLE rsa.Cells(
     Formula          UDT_CellFormula,  -- maybe manage this in a separate formula table for optimum checking with dependencies of the formula(to decide when to call calculate())
     Format           UDT_CellFormat,
     Style            UDT_CellStyle,
-    CreatedBy        [uniqueidentifier] NOT NULL,
+    CreatedBy        UDT_ID,
     CreatedDate       UDT_DateTime,
-    LastUpdatedBy    [uniqueidentifier] NULL,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
     CONSTRAINT PK_RSA_CellID PRIMARY KEY (SheetID, RowNum, ColNum)
@@ -426,6 +464,9 @@ ALTER TABLE rsa.Cells ADD CONSTRAINT FK_RSA_Cells_VUsers_LastUpdatedBy FOREIGN K
 
 -- Drop all constraints
 -- dbo
+
+
+
 ALTER TABLE [dbo].[RAppsRoot] DROP CONSTRAINT [FK_RAppsRoot_VFolders_RootFolderID];
 ALTER TABLE [dbo].[RAppsRoot] DROP CONSTRAINT [FK_RAppsRoot_VUsers_CreatedBy];
 ALTER TABLE [dbo].[RAppsRoot] DROP CONSTRAINT [FK_RAppsRoot_VUsers_LastUpdatedBy];
@@ -440,8 +481,6 @@ ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_LastUpdatedBy];
 ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_FileTypes_FileTypeID];
 ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_CreatedBy];
 ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VFiles_Link];
-ALTER TABLE [dbo].[VFolders] DROP CONSTRAINT [FK_VFolders_VFolders_Link];
 ALTER TABLE [dbo].[VFolders] DROP CONSTRAINT [FK_VFolders_VUsers_CreatedBy];
 ALTER TABLE [dbo].[VFolders] DROP CONSTRAINT [FK_VFolders_VUsers_LastUpdatedBy];
 ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_CreatedBy];
