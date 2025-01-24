@@ -54,7 +54,7 @@ CREATE SCHEMA rsa;
 DROP TABLE dbo.RAppsRoot;
 CREATE TABLE dbo.RAppsRoot(   
     ID            UDT_ID,
-    CompanyName   UDT_Name_Big,
+    CompanyName   UDT_Name_Big,   -- TODO: make UNIQUE
 	RootFolderID  UDT_ID,          -- entire file system's root
     [CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
@@ -70,11 +70,11 @@ CREATE TABLE dbo.RAppsRoot(
 DROP TABLE [dbo].[VUsers];
 CREATE TABLE [dbo].[VUsers](
 	[ID] UDT_ID,
-	[UserName] UDT_Name,
+	[UserName] UDT_Name,   -- TODO: make UNIQUE
 	[FirstName] UDT_Name,
 	[LastName] UDT_Name_Opt,
 	[FullName] UDT_Name_med,
-	[Email] UDT_Name,
+	[Email] UDT_Name,      -- TODO: make UNIQUE
 	[EmailConfirmed] [bit] NOT NULL,
 	[EmailToken] UDT_Token_Opt,
 	[Location] UDT_Name_med,
@@ -106,10 +106,10 @@ CREATE TABLE [dbo].[VRoles](
 DROP TABLE [dbo].[VSystems];
 CREATE TABLE dbo.VSystems(
     ID           UDT_ID IDENTITY(1,1),
-    Name         UDT_Name_Big,
-    AssignedTo    UDT_ID_Opt,   -- not assigned/currently assigned to - VUserID
-	RootFolderID  UDT_ID,                 -- only this system's filesystem root which is some node in the main filesystem tree
-    [CreatedBy]      UDT_ID,
+    Name         UDT_Name_Big,  -- TODO: make UNIQUE, non-clustered index to ensure unique name
+    AssignedTo    UDT_ID_Opt,   -- not assigned(NULL)/currently assigned to(VUserID)
+	RootFolderID  UDT_ID,       -- TODO: must be UNIQUE, get the path by lookup in VFolders table
+	[CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
 	[LastUpdatedBy]  UDT_ID_Opt,
 	[LastUpdatedDate] UDT_DateTime_Opt,
@@ -118,27 +118,13 @@ CREATE TABLE dbo.VSystems(
 )
 
 
-DROP TABLE dbo.VApps;
-CREATE TABLE dbo.VApps(
-    ID            UDT_ID IDENTITY(1,1),
-    Name          UDT_Name_Big,
-    Owner         UDT_ID,  -- which VUser owns/administers the app
-    Settings       UDT_Name_Big,
-    [CreatedBy]      UDT_ID,
-	[CreatedDate]    UDT_DateTime,
-	[LastUpdatedBy]  UDT_ID_Opt,
-	[LastUpdatedDate] UDT_DateTime_Opt,
-	[RStatus] UDT_RowStatus,
-	CONSTRAINT PK_VApps PRIMARY KEY (ID)
-)
-
-
-
 DROP TABLE dbo.VFolders;
 CREATE TABLE dbo.VFolders(
     ID            UDT_ID IDENTITY(1,1),
-    Name          UDT_Name_Big,
-	Attrs  		  UDT_Name,
+    Name          UDT_Name_Big,   -- TODO: only one named 'root'
+	Attrs  		  UDT_Name,    -- unix style 'xxx', so 'rw' means read & write allowed for all users
+	Path          UDT_Path,      -- TODO: make UNIQUE, unix style path(TODO: INSERT/UPDATE TRIGGER to check the path components & whether they are in fact in the mentioned hierarchy)
+	PathIDs       UDT_Path,      -- UNUSED for now, comma separated list of ancestor FolderIDs, oldest first(TODO: TRIGGERS to check the IDs)
     CreatedBy       UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -151,7 +137,7 @@ CREATE TABLE dbo.VFolders(
 DROP TABLE dbo.VFiles;
 CREATE TABLE dbo.VFiles(
     ID            UDT_ID IDENTITY(1,1),
-    Name          UDT_Name_Big,
+    Name          UDT_Name_Big,     -- TODO: cant be 'root'
     FileTypeID    UDT_ID, -- to forward to proper webapp when opening or getting file info
     Attrs  		  UDT_Name,
     CreatedBy       UDT_ID,
@@ -163,11 +149,27 @@ CREATE TABLE dbo.VFiles(
 )
 
 
+DROP TABLE dbo.VApps;
+CREATE TABLE dbo.VApps(
+    ID            UDT_ID IDENTITY(1,1),
+    Name          UDT_Name_Big,
+	Description  UDT_Name_big,
+    Owner         UDT_ID,  -- which VUser owns/administers the app
+    Settings       UDT_Name_Big,
+    [CreatedBy]      UDT_ID,
+	[CreatedDate]    UDT_DateTime,
+	[LastUpdatedBy]  UDT_ID_Opt,
+	[LastUpdatedDate] UDT_DateTime_Opt,
+	[RStatus] UDT_RowStatus,
+	CONSTRAINT PK_VApps PRIMARY KEY (ID)
+)
+
 
 DROP TABLE dbo.FileTypes;
 CREATE TABLE dbo.FileTypes(
     ID        UDT_ID IDENTITY(1,1),    
     Name      UDT_Name,     -- Various file types in the system
+	Description      UDT_Name_big,
     CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -242,9 +244,10 @@ DROP TABLE dbo.SystemFolderFiles;
 CREATE TABLE dbo.SystemFolderFiles(
     ID               UDT_ID IDENTITY(1,1),    
     VSystemID        UDT_ID,
-    VFolderID        UDT_ID,
-    VObjectID        UDT_ID,    -- could be file or folder ID
-	VObjectType      UDT_ObjectType,   -- tells type: file, folder or shortcut(call dbo.CONST('VOBJECTTYPE_FOLDER') etc)
+	VFileID          UDT_ID_Opt,    
+	VFolderID        UDT_ID_Opt,    
+	Link             UDT_Bool,   -- if false, VFileID/VFolderID is a child, else its a link to the file/folder
+	VParentFolderID  UDT_ID,
 	CheckedOutBy     UDT_ID_Opt,   -- NULL means not checked out
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
@@ -378,156 +381,16 @@ CREATE TABLE rsa.Cells(
 -- Now ADD SEED DATA into tables, then activate constraints
 -- See seed.sql
 
-
-
 -------------------------------------------------------------------
-
-
 -- dbo, add all non-PK constraints
-ALTER TABLE dbo.RAppsRoot ADD CONSTRAINT [FK_RAppsRoot_VFolders_RootFolderID] FOREIGN KEY (RootFolderID) REFERENCES dbo.VFolders(ID)
-ALTER TABLE dbo.RAppsRoot ADD CONSTRAINT FK_RAppsRoot_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.RAppsRoot ADD CONSTRAINT FK_RAppsRoot_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.VUsers ADD CONSTRAINT [FK_VUsers_VRoles_RoleId] FOREIGN KEY (RoleID) REFERENCES dbo.VRoles(ID)
-ALTER TABLE [dbo].VUsers ADD CONSTRAINT FK_VUsers_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE	[dbo].VUsers ADD CONSTRAINT FK_VUsers_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE [dbo].[VRoles] ADD CONSTRAINT FK_VRoles_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE	[dbo].[VRoles] ADD CONSTRAINT FK_VRoles_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.VSystems ADD CONSTRAINT FK_VSystems_VUsers_AssignedTo FOREIGN KEY (AssignedTo) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.VSystems ADD CONSTRAINT FK_VSystems_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.VSystems ADD CONSTRAINT FK_VSystems_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.VApps ADD CONSTRAINT FK_VApps_VUsers_Owner FOREIGN KEY (Owner) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.VApps ADD CONSTRAINT FK_VApps_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.VApps ADD CONSTRAINT FK_VApps_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_FileTypes_FileTypeID FOREIGN KEY (FileTypeID) REFERENCES dbo.FileTypes(ID) 
-ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.VFiles ADD CONSTRAINT FK_VFiles_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.FileTypes ADD CONSTRAINT FK_FileTypes_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.FileTypes ADD CONSTRAINT FK_FileTypes_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
--- dbo join tables constraints
-ALTER TABLE dbo.SystemUsers ADD CONSTRAINT FK_SystemUsers_VSystems_VSystemID FOREIGN KEY (VSystemID) REFERENCES dbo.VSystems(ID)
-ALTER TABLE dbo.SystemUsers ADD CONSTRAINT FK_SystemUsers_VUsers_VUserID FOREIGN KEY (VUserID) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.SystemUsers ADD CONSTRAINT FK_SystemUsers_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.SystemUsers ADD CONSTRAINT FK_SystemUsers_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.SystemUserApps ADD CONSTRAINT FK_SystemUserApps_VSystems_VSystemID FOREIGN KEY (VSystemID) REFERENCES dbo.VSystems(ID)
-ALTER TABLE dbo.SystemUserApps ADD CONSTRAINT FK_SystemUserApps_VUsers_VUserID FOREIGN KEY (VUserID) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.SystemUserApps ADD CONSTRAINT FK_SystemUserApps_VApps_VAppID FOREIGN KEY (VAppID) REFERENCES dbo.VApps(ID)
-ALTER TABLE dbo.SystemUserApps ADD CONSTRAINT FK_SystemUserApps_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.SystemUserApps ADD CONSTRAINT FK_SystemUserApps_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.SystemFolderFiles ADD CONSTRAINT FK_SystemFolderFiles_VSystems_VSystemID FOREIGN KEY (VSystemID) REFERENCES dbo.VSystems(ID)
-ALTER TABLE dbo.SystemFolderFiles ADD CONSTRAINT FK_SystemFolderFiles_VFolders_VFolderID FOREIGN KEY (VFolderID) REFERENCES dbo.VFolders(ID)
-ALTER TABLE dbo.SystemFolderFiles ADD CONSTRAINT FK_SystemFolderFiles_VFiles_VFileID FOREIGN KEY (VFileID) REFERENCES dbo.VFiles(ID)
-ALTER TABLE dbo.SystemFolderFiles ADD CONSTRAINT FK_SystemFolderFiles_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.SystemFolderFiles ADD CONSTRAINT FK_SystemFolderFiles_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE dbo.FileTypeApps ADD CONSTRAINT FK_FileTypeApps_FileTypes_VFileTypeID FOREIGN KEY (VFileTypeID) REFERENCES dbo.FileTypes(ID)
-ALTER TABLE dbo.FileTypeApps ADD CONSTRAINT FK_FileTypeApps_VApps_VAppID FOREIGN KEY (VAppID) REFERENCES dbo.VApps(ID)
-ALTER TABLE dbo.FileTypeApps ADD CONSTRAINT FK_FileTypeApps_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE dbo.FileTypeApps ADD CONSTRAINT FK_FileTypeApps_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-
+-- see dboConstraints.sql
 
 -----------------------------------------------------------
 -- rsa, add constraints
-ALTER TABLE rsa.Workbooks ADD CONSTRAINT FK_RSA_Workbooks_VFiles_VFileID FOREIGN KEY (VFileID) REFERENCES dbo.VFiles(ID)
-ALTER TABLE rsa.Workbooks ADD CONSTRAINT FK_RSA_Workbooks_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE rsa.Workbooks ADD CONSTRAINT FK_RSA_Workbooks_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE rsa.Sheets ADD CONSTRAINT FK_RSA_Sheets_Workbooks_WorkbookID FOREIGN KEY (WorkbookID) REFERENCES rsa.Workbooks(ID)
-ALTER TABLE rsa.Sheets ADD CONSTRAINT FK_RSA_Sheets_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE rsa.Sheets ADD CONSTRAINT FK_RSA_Sheets_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE rsa.XlTables ADD CONSTRAINT FK_RSA_XlTables_Sheets_SheetID FOREIGN KEY (SheetID) REFERENCES rsa.Sheets(ID)
-ALTER TABLE rsa.XlTables ADD CONSTRAINT FK_RSA_XlTables_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE rsa.XlTables ADD CONSTRAINT FK_RSA_XlTables_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-ALTER TABLE rsa.Cells ADD CONSTRAINT FK_RSA_Cells_Sheets_SheetID FOREIGN KEY (SheetID) REFERENCES rsa.Sheets(ID)
-ALTER TABLE rsa.Cells ADD CONSTRAINT FK_RSA_Cells_VUsers_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.VUsers(ID)
-ALTER TABLE rsa.Cells ADD CONSTRAINT FK_RSA_Cells_VUsers_LastUpdatedBy FOREIGN KEY (LastUpdatedBy) REFERENCES dbo.VUsers(ID)
-
-
-
-
+-- see rsaConstraints.sql
 
 -----------------------------------------------------------------------------------------------------
-
 -- Drop all constraints
--- dbo
-
-
-
-ALTER TABLE [dbo].[RAppsRoot] DROP CONSTRAINT [FK_RAppsRoot_VFolders_RootFolderID];
-ALTER TABLE [dbo].[RAppsRoot] DROP CONSTRAINT [FK_RAppsRoot_VUsers_CreatedBy];
-ALTER TABLE [dbo].[RAppsRoot] DROP CONSTRAINT [FK_RAppsRoot_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VUsers] DROP CONSTRAINT [FK_VUsers_VRoles_RoleId];
-ALTER TABLE [dbo].[VUsers] DROP CONSTRAINT [FK_VUsers_VUsers_CreatedBy];
-ALTER TABLE [dbo].[VUsers] DROP CONSTRAINT [FK_VUsers_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VRoles] DROP CONSTRAINT [FK_VRoles_VUsers_CreatedBy];
-ALTER TABLE [dbo].[VRoles] DROP CONSTRAINT [FK_VRoles_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_AssignedTo];
-ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_CreatedBy];
-ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_FileTypes_FileTypeID];
-ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_CreatedBy];
-ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VFolders] DROP CONSTRAINT [FK_VFolders_VUsers_CreatedBy];
-ALTER TABLE [dbo].[VFolders] DROP CONSTRAINT [FK_VFolders_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_CreatedBy];
-ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_LastUpdatedBy];
-ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_Owner];
-ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_CreatedBy];
-ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_LastUpdatedBy];
-
-ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VSystems_VSystemID];
-ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_VUserID];
-ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_CreatedBy];
-ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_LastUpdatedBy];
-
-ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VSystems_VSystemID];
-ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_VUserID];
-ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VApps_VAppID];
-ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_CreatedBy];
-ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_LastUpdatedBy];
-
-ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_FileTypes_VFileTypeID];
-ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VApps_VAppID];
-ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VUsers_CreatedBy];
-ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VUsers_LastUpdatedBy];
-
-ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VSystems_VSystemID];
-ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VFolders_VFolderID];
-ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VFiles_VFileID];
-ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_CreatedBy];
-ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_LastUpdatedBy];
-
-
--- rsa
-ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VFiles_VFileID];
-ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VUsers_CreatedBy];
-ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VUsers_LastUpdatedBy];
-ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_Workbooks_WorkbookID];
-ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_VUsers_CreatedBy];
-ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_VUsers_LastUpdatedBy];
-ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_Sheets_SheetID];
-ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_VUsers_CreatedBy];
-ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_VUsers_LastUpdatedBy];
-ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_Sheets_SheetID];
-ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_VUsers_CreatedBy];
-ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_VUsers_LastUpdatedBy];
-
-
----------------------------------------------------------------------------------------------
 -- Query to generate drop constraints statements for all constraints(including PK ones)
 
 DECLARE @sql NVARCHAR(MAX);
@@ -548,3 +411,48 @@ ORDER BY c.[type];
 PRINT @sql;
 
 
+
+-- dbo
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VFolders_RootFolderID];
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_AssignedTo];
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_Owner];
+  ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_FileTypes_FileTypeID];
+  ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VSystems_VSystemID];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_VUserID];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VSystems_VSystemID];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_VUserID];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VApps_VAppID];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_CheckedOutBy];
+  ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_FileTypes_VFileTypeID];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VApps_VAppID];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VUsers_LastUpdatedBy];
+
+
+-- rsa
+  ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VFiles_VFileID];
+  ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VUsers_LastUpdatedBy];
+  ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_Workbooks_WorkbookID];
+  ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_VUsers_LastUpdatedBy];
+  ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_Sheets_SheetID];
+  ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_VUsers_LastUpdatedBy];
+  ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_Sheets_SheetID];
+  ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_VUsers_LastUpdatedBy];
