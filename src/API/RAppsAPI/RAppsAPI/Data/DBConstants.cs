@@ -5,7 +5,7 @@ namespace RAppsAPI.Data
     public class DBConstants
     {
         public enum RStatus
-        {  
+        {
             Inactive = 1,
             Active = 2
         };
@@ -17,6 +17,11 @@ namespace RAppsAPI.Data
             public static readonly string Admin = "Admin";
         }
 
-
+        public enum FolderObjectType
+        {
+            Folder = 1,
+            File = 2,
+            Link = 3
+        };
     }
 }

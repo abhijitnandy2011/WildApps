@@ -3,7 +3,7 @@ using RAppsAPI.Models;
 
 namespace RAppsAPI.Services
 {
-    public class AuthService(RDBContext context) : IAuthService
+    public class FileService(RDBContext context) : IFileService
     {
         public Task<string?> LoginAsync(string username, string password)
         {

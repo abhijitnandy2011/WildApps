@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RAppsAPI.Data;
-using RAppsAPI.Entities;
 using RAppsAPI.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -34,14 +33,14 @@ namespace RAppsAPI.Controllers
             // NOTE: Use a service
             try
             {
-                var uaRole = dbContext.Roles.Where(role => role.Name == DBConstants.RoleName.Unassigned).FirstOrDefault();
+                var uaRole = dbContext.VRoles.Where(role => role.Name == DBConstants.RoleName.Unassigned).FirstOrDefault();
                 if (uaRole == null)
                 {
                     // TODO: Log the detailed error: failed to set role
                     return BadRequest("Failed to register");
                 }
                 var emailToken = Guid.NewGuid().ToString();
-                var user = new VUsers()
+                var user = new VUser()
                 {
                     UserName = request.Username,
                     Email = request.Email,
@@ -51,7 +50,7 @@ namespace RAppsAPI.Controllers
                     Role = uaRole,
                     RStatus = (int)DBConstants.RStatus.Inactive    // row disabled(check with data model convention, use constant)
                 };
-                var result = await dbContext.Users.AddAsync(user);
+                var result = await dbContext.VUsers.AddAsync(user);
                 await dbContext.SaveChangesAsync();
                 if (result == null)
                 {
@@ -78,7 +77,7 @@ namespace RAppsAPI.Controllers
         {
             try
             {
-                var user = dbContext.Users.Where(user => 
+                var user = dbContext.VUsers.Where(user => 
                 user.Email == email && 
                 !user.EmailConfirmed &&
                 user.EmailToken == token).FirstOrDefault();
@@ -119,7 +118,7 @@ namespace RAppsAPI.Controllers
                     return BadRequest("Invalid Credentials");
                 }
                 // User creds are valid, check if user is regd with this app in Users
-                var user = dbContext.Users.Include(user => user.Role)
+                var user = dbContext.VUsers.Include(user => user.Role)
                     .Where(user => user.UserName == username).FirstOrDefault();
                 if (user == null)
                 {
@@ -149,7 +148,7 @@ namespace RAppsAPI.Controllers
         }
 
 
-        private string CreateToken(VUsers user)
+        private string CreateToken(VUser user)
         {
             var claims = new List<Claim>
             {

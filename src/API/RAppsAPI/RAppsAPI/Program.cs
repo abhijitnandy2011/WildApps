@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using RAppsAPI.Data;
-using RAppsAPI.Entities;
 using RAppsAPI.Services;
 using Swashbuckle.AspNetCore.Filters;
 using System.Text;
@@ -53,6 +52,8 @@ builder.Services.AddAuthentication(options =>
 
 
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.AddScoped<IFolderService, FolderService>();
 
 builder.Services.AddAuthorization();
 
