@@ -402,7 +402,7 @@ dbo.CONST('RSTATUS_ACTIVE')
 -- FILES
 
 
--- ReadMe text file
+-- 'ReadMe' text file
 INSERT INTO dbo.VFiles
 (
 Name,       
@@ -414,14 +414,14 @@ RStatus
 )
 VALUES (
 'ReadMe',
-1,
+1,    -- FileTypeID
 '',
 dbo.CONST('VUSERS_SYSTEM'),
 GETDATE(),
 dbo.CONST('RSTATUS_ACTIVE')
 )
 
--- workbook1
+-- 'Workbook1' RSheets file
 INSERT INTO dbo.VFiles
 (
 Name,       
@@ -433,7 +433,7 @@ RStatus
 )
 VALUES (
 'Workbook1',
-2,
+2,    -- FileTypeID
 '',
 dbo.CONST('VUSERS_SYSTEM'),
 GETDATE(),
@@ -490,6 +490,29 @@ dbo.CONST('RSTATUS_ACTIVE')
 
 
 
+
+------------------------------------------------------------------------
+-- SYSTEM USERS
+-- For user profiles
+
+-- Create profile for Admin in system 's1'
+INSERT INTO dbo.SystemUsers
+(
+VSystemID,
+VUserID,
+Profile,
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+1,			-- VSystemID,   
+dbo.CONST('VUSERS_ADMIN'),	 -- VUserID
+'',	  -- Profile      
+dbo.CONST('VUSERS_SYSTEM'),
+GETDATE(),
+dbo.CONST('RSTATUS_ACTIVE')
+)
 
 
 

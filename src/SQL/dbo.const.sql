@@ -39,6 +39,10 @@ BEGIN
 		when 'RSTATUS_INACTIVE'   then 1
 		when 'RSTATUS_ACTIVE'     then 2
 
+		-- SystemFolderFiles.VObjectType
+		-- when 'VOBJECTTYPE_FOLDER'   then 1
+		-- when 'VOBJECTTYPE_FILE'     then 2
+		-- when 'VOBJECTTYPE_LINK'     then 3
 		end
 
 	-- Return the result of the function

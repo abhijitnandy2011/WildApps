@@ -209,6 +209,7 @@ CREATE TABLE dbo.SysLogs(
 
 -- RELATION join tables - dbo
 
+-- User profiles in a system
 DROP table dbo.SystemUsers;
 CREATE TABLE dbo.SystemUsers(
     ID             UDT_ID IDENTITY(1,1),    
@@ -224,20 +225,21 @@ CREATE TABLE dbo.SystemUsers(
 )
 
 
-DROP TABLE dbo.SystemUserApps;
-CREATE TABLE dbo.SystemUserApps(
-    ID               UDT_ID IDENTITY(1,1),    
-    VSystemID        UDT_ID,
-    VUserID          UDT_ID,
-    VAppID           UDT_ID,
-    Settings         UDT_Name_Big,
-    CreatedBy        UDT_ID,
-    CreatedDate       UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-	CONSTRAINT PK_SystemUserAppsID PRIMARY KEY (ID),
-)
+-- Not needed currently, all apps available for all users in all systems
+--DROP TABLE dbo.SystemUserApps;
+--CREATE TABLE dbo.SystemUserApps(
+--    ID               UDT_ID IDENTITY(1,1),    
+--    VSystemID        UDT_ID,
+--    VUserID          UDT_ID,
+--    VAppID           UDT_ID,
+--    Settings         UDT_Name_Big,
+--    CreatedBy        UDT_ID,
+--    CreatedDate       UDT_DateTime,
+--    LastUpdatedBy    UDT_ID_Opt,
+--    LastUpdatedDate   UDT_DateTime_Opt,
+--    RStatus           UDT_RowStatus,
+--	CONSTRAINT PK_SystemUserAppsID PRIMARY KEY (ID),
+--)
 
 
 DROP TABLE dbo.SystemFolderFiles;
@@ -257,15 +259,14 @@ CREATE TABLE dbo.SystemFolderFiles(
 	CONSTRAINT PK_SystemFolderFilesID PRIMARY KEY (ID)
 )
 
--- TODO - union of IDs constraint!
---ALTER TABLE dbo.VFolders ADD CONSTRAINT FK_VFolders_VFolders_Link FOREIGN KEY (Link) REFERENCES dbo.VFolders(ID)
 
 
 -- Not all files will be created via upload so this is not in VFiles. 
 -- Those which are will have their original file upload path saved here.
+-- No need of VSystemID here as VFileID is unique across all systems.
 DROP TABLE dbo.FileUploads;
 CREATE TABLE dbo.FileUploads(
-	ID            UDT_ID IDENTITY(1,1),  
+	ID            UDT_ID IDENTITY(1,1),
 	VFileID       UDT_ID,
 	VAppID        UDT_ID,    -- user selected app ID to indicate which app the file is meant for
 	FileName      UDT_Name_med,
@@ -280,6 +281,8 @@ CREATE TABLE dbo.FileUploads(
 )
 
 
+-- All Apps available for all users in all systems, for now
+-- This app with file type association is global.
 DROP TABLE dbo.FileTypeApps;
 CREATE TABLE dbo.FileTypeApps(
     ID                UDT_ID IDENTITY(1,1),    
