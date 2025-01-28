@@ -31,6 +31,7 @@ namespace RAppsAPI.Services
                     .Include(sysff => sysff.File)
                     .Include(sysff => sysff.File.CreatedByUser)
                     .Include(sysff => sysff.Folder)
+                    .Include(sysff => sysff.Folder.CreatedByUser)
                     .Include(sysff => sysff.ParentFolder)
                     .Where(r => r.VParentFolderId == parentFolderID)
                     .ToListAsync();
