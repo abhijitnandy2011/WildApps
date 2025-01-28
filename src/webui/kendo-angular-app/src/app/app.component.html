@@ -1,0 +1,15 @@
+<kendo-grid [data]="gridData" (cellClick)="cellClickHandler($event)">
+  <kendo-toolbar>
+    <kendo-toolbar-button text="Button"></kendo-toolbar-button>
+    <kendo-toolbar-button
+      text="Toggle"
+      [toggleable]="true"
+    ></kendo-toolbar-button>
+    <kendo-toolbar-spacer></kendo-toolbar-spacer>
+  </kendo-toolbar>
+  <kendo-grid-column field="ObjName" title="Name"> </kendo-grid-column>
+  <kendo-grid-column field="LastModifiedDate" title="ModifiedDate">
+  </kendo-grid-column>
+</kendo-grid>
+
+<button kendoButton (click)="getSysObjects()">Load Data</button>
