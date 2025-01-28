@@ -1,15 +1,32 @@
-<kendo-grid [data]="gridData" (cellClick)="cellClickHandler($event)">
-  <kendo-toolbar>
-    <kendo-toolbar-button text="Button"></kendo-toolbar-button>
-    <kendo-toolbar-button
-      text="Toggle"
-      [toggleable]="true"
-    ></kendo-toolbar-button>
-    <kendo-toolbar-spacer></kendo-toolbar-spacer>
-  </kendo-toolbar>
-  <kendo-grid-column field="ObjName" title="Name"> </kendo-grid-column>
-  <kendo-grid-column field="LastModifiedDate" title="ModifiedDate">
-  </kendo-grid-column>
-</kendo-grid>
+<nav class="navbar navbar-expand-sm navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="javascript:void(0)">Logo</a>
+    <button
+      class="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#mynavbar"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="mynavbar">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link active" href="javascript:void(0)">Link</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:void(0)">Link</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:void(0)">Link</a>
+        </li>
+      </ul>
+      <form class="d-flex">
+        <input class="form-control me-2" type="text" placeholder="Search" />
+        <button class="btn btn-primary" type="button">Search</button>
+      </form>
+    </div>
+  </div>
+</nav>
 
-<button kendoButton (click)="getSysObjects()">Load Data</button>
+<router-outlet></router-outlet>
