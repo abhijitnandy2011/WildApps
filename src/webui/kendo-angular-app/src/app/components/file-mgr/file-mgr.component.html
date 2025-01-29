@@ -1,10 +1,14 @@
 <div class="container">
   <div class="row pt-3">
     <div class="col">
-      <kendo-grid [data]="gridData">
+      <kendo-grid #grid [data]="gridData" (cellClick)="onCellClick($event)">
         <kendo-toolbar>
           <kendo-toolbar-button text="Add Folder"></kendo-toolbar-button>
           <kendo-toolbar-button text="Add File"></kendo-toolbar-button>
+          <kendo-toolbar-button text="Rename"></kendo-toolbar-button>
+          <kendo-toolbar-button text="Delete"></kendo-toolbar-button>
+          <kendo-toolbar-button text="Download"></kendo-toolbar-button>
+          <kendo-toolbar-button text="Upload"></kendo-toolbar-button>
           <button type="button" class="btn btn-primary">
             Notifications <span class="badge text-bg-secondary">4</span>
           </button>
@@ -19,7 +23,16 @@
         </kendo-grid-column>
       </kendo-grid>
 
-      <button kendoButton (click)="getSysObjects()">Load Data</button>
+      <kendo-contextmenu
+        #gridmenu
+        [kendoMenuHierarchyBinding]="menuItems"
+        [textField]="['text', 'childText']"
+        childrenField="children"
+        svgIconField="svgIcon"
+        separatorField="separator"
+      ></kendo-contextmenu>
+
+      <!-- <button kendoButton (click)="getSysObjects()">Load Data</button> -->
     </div>
   </div>
   <div class="row pt-3">

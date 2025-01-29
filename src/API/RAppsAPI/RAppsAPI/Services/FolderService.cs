@@ -65,6 +65,28 @@ namespace RAppsAPI.Services
                             string objLastUpdatedByUser = dbSysFolderFile.Folder?.LastUpdatedByUser?.UserName ?? dbSysFolderFile.File?.LastUpdatedByUser?.UserName ?? string.Empty;
                             string objLastUpdatedDate = dbSysFolderFile.Folder?.LastUpdatedDate?.ToString() ?? dbSysFolderFile.File?.LastUpdatedDate?.ToString() ?? string.Empty;
 
+                            // TODO: This should come from the DB where the app to URL mapping will be stored when the app 
+                            // registers.
+                            string openUrl = "";
+                            switch(objType)
+                            {
+                                case FolderObjectType.Folder:
+                                    openUrl = "/files/" + objId;
+                                    break;
+                                case FolderObjectType.File:
+                                    switch(dbSysFolderFile.File?.FileTypeId)
+                                    {
+                                        case 1:
+                                            openUrl = "/notepad/" + objId;
+                                            break;
+                                        case 2:
+                                            openUrl = "/rsheet/" + objId;
+                                            break;
+                                            // TODO Other types
+                                    }
+                                    break;
+                            }
+
                             objList.Add(new FolderObjectDTO
                             {
                                 Id = (int)objId,
@@ -74,9 +96,10 @@ namespace RAppsAPI.Services
                                 ObjectType = (int)objType,
                                 Attributes = objAttrs,
                                 //IconURL = d,
-                                CreatedBy       = objCreatedByUser,
-                                CreatedDate     = objCreatedDate,
-                                LastUpdatedBy   = objLastUpdatedByUser,
+                                OpenUrl = openUrl,
+                                CreatedBy = objCreatedByUser,
+                                CreatedDate = objCreatedDate,
+                                LastUpdatedBy = objLastUpdatedByUser,
                                 LastUpdatedDate = objLastUpdatedDate
                             });
                         }

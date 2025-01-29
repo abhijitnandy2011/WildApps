@@ -32,6 +32,7 @@
     "@progress/kendo-angular-l10n": "18.0.0",
     "@progress/kendo-angular-label": "18.0.0",
     "@progress/kendo-angular-layout": "18.0.0",
+    "@progress/kendo-angular-menu": "^18.0.0",
     "@progress/kendo-angular-navigation": "18.0.0",
     "@progress/kendo-angular-pager": "18.0.0",
     "@progress/kendo-angular-pdf-export": "18.0.0",
