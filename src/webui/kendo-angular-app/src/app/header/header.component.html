@@ -1,1 +1,46 @@
-<p>header works!</p>
+<kendo-appbar #appbar position="top" themeColor="dark">
+  <kendo-appbar-section>
+    <button kendoButton fillMode="flat">
+      <kendo-svgicon
+        [icon]="menuIcon"
+        themeColor="dark"
+        (click)="onButtonClick()"
+      ></kendo-svgicon>
+    </button>
+  </kendo-appbar-section>
+
+  <kendo-appbar-section>
+    <h1 class="title">ZApps Platform</h1>
+  </kendo-appbar-section>
+
+  <kendo-appbar-spacer width="32px"></kendo-appbar-spacer>
+
+  <kendo-appbar-section>
+    <ul>
+      <li><span>What's New</span></li>
+      <li><span>About</span></li>
+      <li><span>Contacts</span></li>
+    </ul>
+  </kendo-appbar-section>
+
+  <kendo-appbar-spacer></kendo-appbar-spacer>
+
+  <kendo-appbar-section class="actions">
+    <kendo-badge-container>
+      <button kendoButton fillMode="flat">
+        <kendo-svgicon [icon]="bellIcon"></kendo-svgicon>
+      </button>
+      <kendo-badge themeColor="info" size="small">12</kendo-badge>
+    </kendo-badge-container>
+    <span class="k-appbar-separator"></span>
+  </kendo-appbar-section>
+
+  <kendo-appbar-section>
+    <kendo-avatar
+      [imageSrc]="kendokaAvatar"
+      shape="circle"
+      width="26px"
+      height="26px"
+    ></kendo-avatar>
+  </kendo-appbar-section>
+</kendo-appbar>

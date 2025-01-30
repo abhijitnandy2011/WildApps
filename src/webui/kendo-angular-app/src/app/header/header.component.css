@@ -1,0 +1,54 @@
+body {
+  background: #adadb1;
+}
+
+.title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.title {
+  text-transform: capitalize;
+  font-size: 18px;
+  margin: 0;
+}
+kendo-badge-container {
+  margin-right: 4px;
+}
+kendo-badge-container .k-button {
+  padding: 0;
+}
+
+ul {
+  font-size: 14px;
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+}
+li {
+  margin: 0 9px;
+}
+li:hover {
+  cursor: pointer;
+  color: #d6002f;
+}
+.actions .k-button {
+  padding: 0;
+}
+
+.k-appbar-dark .k-button-clear {
+  color: #ffffffff;
+}
+.k-appbar-dark .k-button-clear:hover {
+  color: #ffffff99;
+}
+.k-icon {
+  font-size: 18px;
+}
+.k-appbar .k-appbar-separator {
+  margin: 0 8px;
+}
+.wrap {
+  margin-bottom: 30px;
+}

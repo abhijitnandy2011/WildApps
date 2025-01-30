@@ -27,6 +27,7 @@
     "@progress/kendo-angular-excel-export": "18.0.0",
     "@progress/kendo-angular-grid": "^18.0.0",
     "@progress/kendo-angular-icons": "18.0.0",
+    "@progress/kendo-angular-indicators": "^18.0.0",
     "@progress/kendo-angular-inputs": "18.0.0",
     "@progress/kendo-angular-intl": "18.0.0",
     "@progress/kendo-angular-l10n": "18.0.0",

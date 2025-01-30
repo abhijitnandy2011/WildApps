@@ -1,12 +1,18 @@
 import { Component, ViewChild } from '@angular/core';
 
-import { KENDO_GRID, GridComponent } from '@progress/kendo-angular-grid';
+import {
+  KENDO_GRID,
+  GridComponent,
+  RowClassArgs,
+  SelectableSettings,
+} from '@progress/kendo-angular-grid';
 import {
   KENDO_CONTEXTMENU,
   ContextMenuComponent,
 } from '@progress/kendo-angular-menu';
 import { KENDO_TOOLBAR } from '@progress/kendo-angular-toolbar';
 import { KENDO_BUTTONS } from '@progress/kendo-angular-buttons';
+import { KENDO_CARD } from '@progress/kendo-angular-layout';
 
 import { SysObject } from '../../models/sysobject';
 import { HttpClient } from '@angular/common/http';
@@ -14,9 +20,25 @@ import { ActivatedRoute } from '@angular/router';
 
 import { MenuItems, menuItems } from '../../data/menu-items';
 
+import {
+  SVGIcon,
+  folderAddIcon,
+  fileAddIcon,
+  tableAlignRemoveIcon,
+  groupBoxIcon,
+  uploadIcon,
+  downloadIcon,
+} from '@progress/kendo-svg-icons';
+
 @Component({
   selector: 'app-file-mgr',
-  imports: [KENDO_GRID, KENDO_TOOLBAR, KENDO_BUTTONS, KENDO_CONTEXTMENU],
+  imports: [
+    KENDO_GRID,
+    KENDO_TOOLBAR,
+    KENDO_BUTTONS,
+    KENDO_CONTEXTMENU,
+    KENDO_CARD,
+  ],
   templateUrl: './file-mgr.component.html',
   styleUrl: './file-mgr.component.css',
 })
@@ -27,7 +49,7 @@ export class FileMgrComponent {
   title = 'kendo-angular-app';
   private path: string;
 
-  responseObjList: any[] = [];
+  public selectableSettings: SelectableSettings;
 
   public gridData: SysObject[] = [];
 
@@ -38,7 +60,49 @@ export class FileMgrComponent {
 
   public showCommandRow: boolean = false;
 
-  constructor(private route: ActivatedRoute, private http: HttpClient) {}
+  public addFolderIcon: SVGIcon = folderAddIcon;
+  public addFileIcon: SVGIcon = fileAddIcon;
+  public renameIcon: SVGIcon = groupBoxIcon;
+  public deleteIcon: SVGIcon = tableAlignRemoveIcon;
+  public fileDownloadIcon: SVGIcon = downloadIcon;
+  public fileUploadIcon: SVGIcon = uploadIcon;
+
+  constructor(private route: ActivatedRoute, private http: HttpClient) {
+    this.setSelectableSettings();
+  }
+
+  public setSelectableSettings(): void {
+    this.selectableSettings = {
+      checkboxOnly: false,
+      mode: 'multiple',
+      drag: false,
+      metaKeyMultiSelect: true,
+    };
+  }
+
+  public onAddFolderClick(): void {
+    console.log('on click');
+  }
+
+  public onAddFileClick(): void {
+    console.log('on click');
+  }
+
+  public onRenameClick(): void {
+    console.log('on click');
+  }
+
+  public onDeleteClick(): void {
+    console.log('on click');
+  }
+
+  public onUploadFileClick(): void {
+    console.log('on click');
+  }
+
+  public onDownloadFileClick(): void {
+    console.log('on click');
+  }
 
   ngOnInit(): void {
     // Accessing route parameters
@@ -68,6 +132,7 @@ export class FileMgrComponent {
           this.gridData.push({
             ID: res.id,
             ObjName: res.name,
+            ObjType: res.objectType == 1 ? 'Folder' : 'File',
             LastModifiedDate: res.createdDate,
             Link: res.openUrl, //`/files/${res.id}`,
           });
@@ -93,4 +158,8 @@ export class FileMgrComponent {
       });
     }
   }
+
+  public rowCallback = (context: RowClassArgs) => {
+    return 'gold';
+  };
 }

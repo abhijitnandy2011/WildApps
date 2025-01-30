@@ -1,25 +1,74 @@
-<div class="container">
+<div class="container-fluid">
   <div class="row pt-3">
     <div class="col">
-      <kendo-grid #grid [data]="gridData" (cellClick)="onCellClick($event)">
+      <kendo-grid
+        #grid
+        [data]="gridData"
+        (cellClick)="onCellClick($event)"
+        [selectable]="selectableSettings"
+      >
         <kendo-toolbar>
-          <kendo-toolbar-button text="Add Folder"></kendo-toolbar-button>
-          <kendo-toolbar-button text="Add File"></kendo-toolbar-button>
-          <kendo-toolbar-button text="Rename"></kendo-toolbar-button>
-          <kendo-toolbar-button text="Delete"></kendo-toolbar-button>
-          <kendo-toolbar-button text="Download"></kendo-toolbar-button>
-          <kendo-toolbar-button text="Upload"></kendo-toolbar-button>
+          <kendo-toolbar-button
+            title="Add folder"
+            [svgIcon]="addFolderIcon"
+            showIcon="both"
+            themeColor="primary"
+            [disabled]="false"
+            (click)="onAddFolderClick()"
+          ></kendo-toolbar-button>
+          <kendo-toolbar-button
+            title="Add file"
+            [svgIcon]="addFileIcon"
+            showIcon="both"
+            themeColor="primary"
+            [disabled]="false"
+            (click)="onAddFileClick()"
+          ></kendo-toolbar-button>
+          <kendo-toolbar-button
+            title="Rename"
+            [svgIcon]="renameIcon"
+            showIcon="both"
+            themeColor="primary"
+            [disabled]="false"
+            (click)="onRenameClick()"
+          ></kendo-toolbar-button>
+          <kendo-toolbar-button
+            title="Delete"
+            [svgIcon]="deleteIcon"
+            showIcon="both"
+            themeColor="primary"
+            [disabled]="false"
+            (click)="onDeleteClick()"
+          ></kendo-toolbar-button>
+          <kendo-toolbar-button
+            title="Upload file"
+            [svgIcon]="fileUploadIcon"
+            showIcon="both"
+            themeColor="primary"
+            [disabled]="false"
+            (click)="onUploadFileClick()"
+          ></kendo-toolbar-button>
+          <kendo-toolbar-button
+            title="Download file"
+            [svgIcon]="fileDownloadIcon"
+            showIcon="both"
+            themeColor="primary"
+            [disabled]="false"
+            (click)="onDownloadFileClick()"
+          ></kendo-toolbar-button>
           <button type="button" class="btn btn-primary">
             Notifications <span class="badge text-bg-secondary">4</span>
           </button>
           <kendo-toolbar-spacer></kendo-toolbar-spacer>
         </kendo-toolbar>
+        <kendo-grid-checkbox-column [width]="40"></kendo-grid-checkbox-column>
         <kendo-grid-column field="ObjName" title="Name">
           <ng-template kendoGridCellTemplate let-dataItem>
             <a [href]="dataItem.Link">{{ dataItem.ObjName }}</a>
           </ng-template>
         </kendo-grid-column>
-        <kendo-grid-column field="LastModifiedDate" title="ModifiedDate">
+        <kendo-grid-column field="ObjType" title="Type"></kendo-grid-column>
+        <kendo-grid-column field="LastModifiedDate" title="Modified">
         </kendo-grid-column>
       </kendo-grid>
 
@@ -33,13 +82,6 @@
       ></kendo-contextmenu>
 
       <!-- <button kendoButton (click)="getSysObjects()">Load Data</button> -->
-    </div>
-  </div>
-  <div class="row pt-3">
-    <div class="col">
-      <button type="button" class="btn btn-primary">
-        Notifications <span class="badge text-bg-secondary">4</span>
-      </button>
     </div>
   </div>
 </div>

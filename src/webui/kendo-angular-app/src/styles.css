@@ -1,1 +1,71 @@
+
 /* You can add global styles to this file, and also import other style files */
+
+ /* .k-grid-content .k-table-td {
+    background: white;
+}
+.k-grid-content .k-table-td.k-table-alt-td {
+    background: white;
+} 
+
+.k-grid-content .k-table-td {
+    border-left: none;
+    border-bottom: 1;
+    border-bottom-width: 1;
+} */
+
+#appbar body {
+  background: #181819;
+}
+
+.k-grid-content .k-table-td.k-table-td {
+    border-bottom-width: 10;
+    border-bottom: black;
+} 
+
+.k-grid-content tr td {
+    border-bottom: 2px solid black;
+}
+
+/* .k-grid-table {
+
+    border-collapse: collapse;
+  
+    border: none;
+  
+  } */
+
+/* .k-grid  {
+    border-left-width: 0;
+} */
+
+
+
+/* .k-grid-table td, 
+.k-grid-table th {
+
+  border: none;
+
+} */
+
+/* .k-grid-content tr {
+    background-color:red;
+}   
+  
+.k-grid-content .k-alt {
+   background-color:blue;
+} */
+
+
+  /* .k-grid-content tr.gold {
+    background-color: gold;
+  }
+
+  .k-grid-content .k-alt  {
+    background-color: gold; 
+  } */
+
+
+  /* .gold {
+    background-color: gold; 
+  } */
