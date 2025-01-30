@@ -8,8 +8,8 @@ namespace RAppsAPI.Controllers
     [ApiController]
     public class FolderController(IFolderService folderService) : Controller
     {
-        [HttpPost("createUnderPath")]
-        public async Task<IActionResult> CreateUnderPath(
+        [HttpPost("createUsingPath")]
+        public async Task<IActionResult> CreateUsingPath(
             string path,
             string name,
             string description,
@@ -25,16 +25,16 @@ namespace RAppsAPI.Controllers
             }
         }
 
-        [HttpPost("createUnderID")]
-        public async Task<IActionResult> CreateUnderID(
-            int id,
-            string name,
-            string description,
+        [HttpPost("createUsingID")]
+        public async Task<IActionResult> CreateUsingID(
+            int parentFolderId,
+            string subFolderName,            
             string attributes)
         {
             try
             {
-                return Ok("Create folder under ID");
+                var resp = await folderService.Create(subFolderName, attributes, parentFolderId, 1);
+                return Json(resp);                
             }
             catch (Exception ex)
             {

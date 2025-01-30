@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 using RAppsAPI.Data;
 using RAppsAPI.Models;
 using System.Collections.Generic;
@@ -8,14 +9,67 @@ namespace RAppsAPI.Services
 {
     public class FolderService(RDBContext dbContext) : IFolderService
     {
-        public Task<FolderObjectDTO?> Create(string folderName, string path)
+        public async Task<FolderObjectUpdateResponseDTO> Create(string folderName, string attrs, string parentPath, int createdByUserID)
         {
             throw new NotImplementedException();
         }
 
-        public Task<FolderObjectDTO?> Create(string folderName, int parentFolderID)
+        public async Task<FolderObjectUpdateResponseDTO> Create(string folderName, string attrs, int parentFolderID, int createdByUserID)
         {
-            throw new NotImplementedException();
+            using var transaction = dbContext.Database.BeginTransaction();
+            try
+            {
+                var respObj = new FolderObjectUpdateResponseDTO();
+                respObj.Id = -1;
+                respObj.ObjectType = (int)FolderObjectType.Folder;
+                var parentFolder = await dbContext.VFolders.Where<VFolder>(f => f.Id == parentFolderID).FirstOrDefaultAsync();
+                if (parentFolder != null)
+                {
+                    // Transactions are used by SaveChanges()
+                    // But we will need to do a SaveChanges() to get the new folder's ID & then
+                    // again to map it.
+                    var newPath = string.Join(DBConstants.PathSep, [parentFolder.Path, folderName]);                    
+                    var newVFolder = new VFolder()
+                    {
+                        Name = folderName,
+                        Attrs = attrs,
+                        Path = newPath,
+                        CreatedBy = createdByUserID,
+                        CreatedDate = DateTime.Now,
+                        Rstatus = (int)DBConstants.RStatus.Active
+
+                    };
+
+                    await dbContext.AddAsync(newVFolder);
+                    await dbContext.SaveChangesAsync();
+
+
+                    //var newPathIDs = string.Join(DBConstants.PathIDSep, [parentFolder.PathIds, folderName]);
+
+                    transaction.Commit();
+
+                    respObj.Code = (int)Constants.ResponseReturnCode.Success;
+                    
+                }
+                else
+                {
+                    respObj.Code = (int)Constants.ResponseReturnCode.Error;
+                    respObj.Message = $"No folder with id {parentFolderID}";
+                    transaction.Rollback();
+                }
+
+                return respObj;
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                // TODO: Log expception message/error                
+                return new FolderObjectUpdateResponseDTO()
+                {
+                    Code = (int)Constants.ResponseReturnCode.Error,
+                    Message = "Failed to create sub folder"
+                };
+            }
         }
 
         public Task<List<FolderObjectDTO>?> Read(string path)
@@ -33,7 +87,7 @@ namespace RAppsAPI.Services
                     .Include(sysff => sysff.Folder)
                     .Include(sysff => sysff.Folder.CreatedByUser)
                     .Include(sysff => sysff.ParentFolder)
-                    .Where(r => r.VParentFolderId == parentFolderID)
+                    .Where(r => r.VParentFolderId == parentFolderID && r.Rstatus == (byte)RStatus.Active)
                     .ToListAsync();
                 if (dbObjList == null)
                 {
@@ -113,11 +167,23 @@ namespace RAppsAPI.Services
             }
             catch (Exception ex)
             {
-                // Log error
+                // TODO: Log error
                 return new List<FolderObjectDTO>();
             }            
         }
 
-       
+        public async Task<FolderObjectUpdateResponseDTO> updateFolder(int folderID, string newName, string attrs, string modifiedByUserName)
+        {
+            try
+            {
+                return new FolderObjectUpdateResponseDTO();
+            }
+            catch (Exception ex)
+            {
+                // TODO: Log error
+                return new FolderObjectUpdateResponseDTO();
+            }
+            
+        }
     }
 }

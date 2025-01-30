@@ -23,5 +23,8 @@ namespace RAppsAPI.Data
             File = 2,
             Link = 3
         };
+
+        public static string PathSep = "/";
+        public static string PathIDSep = ",";
     }
 }

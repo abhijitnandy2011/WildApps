@@ -1,4 +1,4 @@
-﻿using RAppsAPI.Data;
+﻿
 using RAppsAPI.Models;
 
 namespace RAppsAPI.Services
@@ -7,7 +7,9 @@ namespace RAppsAPI.Services
     {
         Task<List<FolderObjectDTO>?> Read(string path);
         Task<List<FolderObjectDTO>?> Read(int parentFolderID);
-        Task<FolderObjectDTO?> Create(string folderName, string path);
-        Task<FolderObjectDTO> Create(string folderName, int parentFolderID);
+        Task<FolderObjectUpdateResponseDTO> Create(string folderName, string attrs, string parentPath, int createdByUserName);
+        Task<FolderObjectUpdateResponseDTO> Create(string folderName, string attrs, int parentFolderID, int createdByUserName);
+
+        Task<FolderObjectUpdateResponseDTO> updateFolder(int folderID, string newName, string attrs, string modifiedByUserName);
     }
 }
