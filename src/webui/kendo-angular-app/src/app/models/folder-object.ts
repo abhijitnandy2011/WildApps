@@ -1,4 +1,4 @@
-export class SysObject {
+export class FolderObject {
   ID: number;
   ObjName: string;
   ObjType: string;

@@ -1,12 +1,7 @@
 <div class="container-fluid">
   <div class="row pt-3">
     <div class="col">
-      <kendo-grid
-        #grid
-        [data]="gridData"
-        (cellClick)="onCellClick($event)"
-        [selectable]="selectableSettings"
-      >
+      <kendo-grid #grid [data]="gridData" (cellClick)="onCellClick($event)" [selectable]="selectableSettings">
         <kendo-toolbar>
           <kendo-toolbar-button
             title="Add folder"
@@ -68,8 +63,7 @@
           </ng-template>
         </kendo-grid-column>
         <kendo-grid-column field="ObjType" title="Type"></kendo-grid-column>
-        <kendo-grid-column field="LastModifiedDate" title="Modified">
-        </kendo-grid-column>
+        <kendo-grid-column field="LastModifiedDate" title="Modified"> </kendo-grid-column>
       </kendo-grid>
 
       <kendo-contextmenu
@@ -80,6 +74,31 @@
         svgIconField="svgIcon"
         separatorField="separator"
       ></kendo-contextmenu>
+
+      <kendo-dialog
+        *ngIf="opened"
+        autoFocusedElement="#folderObjectName"
+        title="Add {{ folderObjectTypePrompt }}"
+        (close)="closeNewFolderObjectDialog('cancel')"
+        [minWidth]="250"
+        [width]="450"
+      >
+        <div style="margin: 30px; text-align: center">
+          <p>Enter the new {{ folderObjectTypePrompt }} name</p>
+
+          <input
+            kendoTextBox
+            id="folderObjectName"
+            placeholder=""
+            [(ngModel)]="folderObjectName"
+            [style.width.px]="200"
+          />
+        </div>
+        <kendo-dialog-actions>
+          <button kendoButton (click)="closeNewFolderObjectDialog('ok')" themeColor="primary">Ok</button>
+          <button kendoButton (click)="closeNewFolderObjectDialog('cancel')">Cancel</button>
+        </kendo-dialog-actions>
+      </kendo-dialog>
 
       <!-- <button kendoButton (click)="getSysObjects()">Load Data</button> -->
     </div>
