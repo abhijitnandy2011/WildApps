@@ -23,7 +23,7 @@ public partial class SystemFolderFile
     [ForeignKey(nameof(Folder))]
     public virtual int? VFolderId { get; set; }
 
-    public bool Link { get; set; }
+    public bool Link { get; set; } = false;
 
     [Column("VParentFolderID")]
     [ForeignKey(nameof(ParentFolder))]

@@ -26,33 +26,47 @@ namespace RAppsAPI.Services
                 if (parentFolder != null)
                 {
                     // Transactions are used by SaveChanges()
-                    // But we will need to do a SaveChanges() to get the new folder's ID & then
-                    // again to map it.
-                    var newPath = string.Join(DBConstants.PathSep, [parentFolder.Path, folderName]);                    
+                    // But we will need to do a SaveChanges() to get the new folder's ID & then again to map it.
+                    var newPath = string.Join(DBConstants.PathSep, [parentFolder.Path, folderName]);
+                    var newParentIDs = string.Join(DBConstants.PathIDSep, [parentFolder.ParentIds, parentFolderID]);
                     var newVFolder = new VFolder()
                     {
                         Name = folderName,
                         Attrs = attrs,
                         Path = newPath,
+                        ParentIds = newParentIDs,
                         CreatedBy = createdByUserID,
                         CreatedDate = DateTime.Now,
                         Rstatus = (int)DBConstants.RStatus.Active
 
                     };
-
-                    await dbContext.AddAsync(newVFolder);
+                    // Create folder in DB
+                    await dbContext.VFolders.AddAsync(newVFolder);
                     await dbContext.SaveChangesAsync();
+                    // Add Mapping
+                    var newFolderID = newVFolder.Id;
+                    var newSystemFolderFile = new SystemFolderFile()
+                    {
+                        VSystemId = DBConstants.USER_SYSTEM_ID,
+                        VFolderId = newFolderID,
+                        VParentFolderId = parentFolderID,
+                        CreatedBy = createdByUserID,
+                        CreatedDate = DateTime.Now,
+                        Rstatus = (int)DBConstants.RStatus.Active
 
-
-                    //var newPathIDs = string.Join(DBConstants.PathIDSep, [parentFolder.PathIds, folderName]);
-
+                    };
+                    // Create mapping
+                    await dbContext.SystemFolderFiles.AddAsync(newSystemFolderFile);
+                    await dbContext.SaveChangesAsync();
+                    // Commit
                     transaction.Commit();
-
+                    // response
                     respObj.Code = (int)Constants.ResponseReturnCode.Success;
-                    
+                    respObj.Message = "success";
                 }
                 else
                 {
+                    // error
                     respObj.Code = (int)Constants.ResponseReturnCode.Error;
                     respObj.Message = $"No folder with id {parentFolderID}";
                     transaction.Rollback();

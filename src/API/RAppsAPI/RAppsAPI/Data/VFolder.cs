@@ -19,10 +19,11 @@ public partial class VFolder
     [StringLength(128)]
     public string Attrs { get; set; } = null!;
 
+    [StringLength(800)]
     public string Path { get; set; } = null!;
 
-    [Column("PathIDs")]
-    public string PathIds { get; set; } = null!;
+    [StringLength(800)]
+    public string ParentIds { get; set; } = null!;
 
     [ForeignKey(nameof(CreatedByUser))]
     public virtual int CreatedBy { get; set; }

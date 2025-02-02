@@ -17,6 +17,8 @@ namespace RAppsAPI.Data
             public static readonly string Admin = "Admin";
         }
 
+        public static int USER_SYSTEM_ID = 2;
+
         public enum FolderObjectType
         {
             Folder = 1,

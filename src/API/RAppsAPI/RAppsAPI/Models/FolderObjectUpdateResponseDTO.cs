@@ -4,7 +4,7 @@
     {
         public int Id { get; set; }
         public int ObjectType { get; set; }
-        public int Code { get; set; } = false;
+        public int Code { get; set; } = -1;
         public string Message { get; set; } = string.Empty;     
     }
 }

@@ -27,12 +27,13 @@ namespace RAppsAPI.Controllers
 
         [HttpPost("createUsingID")]
         public async Task<IActionResult> CreateUsingID(
-            int parentFolderId,
-            string subFolderName,            
-            string attributes)
+            [FromBody] CreateFolderRequestDTO req)
         {
             try
             {
+                int parentFolderId = req.parentFolderId;
+                string subFolderName = req.subFolderName;
+                string attributes = req.attributes;
                 var resp = await folderService.Create(subFolderName, attributes, parentFolderId, 1);
                 return Json(resp);                
             }
