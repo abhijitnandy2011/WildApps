@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using RAppsAPI.Data;
 using RAppsAPI.Models;
 using RAppsAPI.Services;
 
@@ -34,7 +35,7 @@ namespace RAppsAPI.Controllers
                 int parentFolderId = req.parentFolderId;
                 string subFolderName = req.subFolderName;
                 string attributes = req.attributes;
-                var resp = await folderService.Create(subFolderName, attributes, parentFolderId, 1);
+                var resp = await folderService.CreateUsingID(subFolderName, attributes, parentFolderId, DBConstants.ADMIN_USER_ID);
                 return Json(resp);                
             }
             catch (Exception ex)
@@ -44,11 +45,11 @@ namespace RAppsAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ReadID(int id)
+        public async Task<IActionResult> ReadUsingID(int id)
         {
             try
             {
-                var objList = await folderService.Read(id);
+                var objList = await folderService.ReadUsingID(id);
                 return Json(objList);
                 //return Ok("Read folder using ID");
             }
@@ -59,16 +60,18 @@ namespace RAppsAPI.Controllers
             }
         }
 
-        [HttpPut]
-        public async Task<IActionResult> UpdateID(
-            int id,
-            string name,
-            string description,
-            string attributes)
+        [HttpPut("UpdateUsingID")]
+        public async Task<IActionResult> UpdateUsingID(
+            [FromBody] UpdateFolderRequestDTO req)            
         {
             try
             {
-                return Ok("Update folder using ID");
+                int folderID = req.folderId;
+                string newName = req.folderName;
+                string description = req.description;
+                string attrs = req.attributes;
+                var resp = await folderService.UpdateUsingID(folderID, newName, attrs, description, DBConstants.ADMIN_USER_ID);
+                return Json(resp);
             }
             catch (Exception ex)
             {
@@ -78,11 +81,12 @@ namespace RAppsAPI.Controllers
 
 
         [HttpDelete]
-        public async Task<IActionResult> DeleteID(int id)
+        public async Task<IActionResult> DeleteID(int folderId)
         {
             try
             {
-                return Ok("Delete folder using ID");
+                var resp = await folderService.DeleteUsingID(folderId, DBConstants.ADMIN_USER_ID);
+                return Json(resp);
             }
             catch (Exception ex)
             {

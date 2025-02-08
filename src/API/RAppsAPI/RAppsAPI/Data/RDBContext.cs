@@ -107,5 +107,21 @@ namespace RAppsAPI.Data
             
         }
 
+
+
+        public void logMsg(
+            string module,
+            int code,
+            string msg,
+            int createdByUserId,
+            string description = "",
+            int? objId1 = null,
+            int? objId2 = null,
+            int? objId3 = null)
+        {
+            Database.ExecuteSql($"EXECUTE dbo.logMsg {module}, {code}, {msg}, {description}, {createdByUserId}, {objId1}, {objId2}, {objId3}");
+        }
     }
+
+
 }

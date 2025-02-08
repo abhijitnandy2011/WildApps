@@ -21,6 +21,9 @@ public partial class VSystem
     [Column("RootFolderID")]
     public int RootFolderId { get; set; }
 
+    [StringLength(800)]
+    public string? Description { get; set; }
+
     public int CreatedBy { get; set; }
 
     [Column(TypeName = "datetime")]

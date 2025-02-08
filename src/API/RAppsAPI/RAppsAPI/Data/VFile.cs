@@ -22,6 +22,9 @@ public partial class VFile
     [StringLength(128)]
     public string Attrs { get; set; } = null!;
 
+    [StringLength(800)]
+    public string? Description { get; set; }
+
     [ForeignKey(nameof(CreatedByUser))]
     public virtual int CreatedBy { get; set; }
 

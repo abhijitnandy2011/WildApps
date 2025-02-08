@@ -20,6 +20,9 @@ public partial class VFolder
     public string Attrs { get; set; } = null!;
 
     [StringLength(800)]
+    public string? Description { get; set; }
+
+    [StringLength(800)]
     public string Path { get; set; } = null!;
 
     [StringLength(800)]

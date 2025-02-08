@@ -15,10 +15,21 @@ public partial class SysLog
     [StringLength(128)]
     public string Module { get; set; } = null!;
 
+    public int Code { get; set; }
+
     [StringLength(512)]
-    public string ErrorMsg { get; set; } = null!;
+    public string Msg { get; set; } = null!;
 
     public string Description { get; set; } = null!;
+
+    [Column("ObjectID1")]
+    public int? ObjectId1 { get; set; }
+
+    [Column("ObjectID2")]
+    public int? ObjectId2 { get; set; }
+
+    [Column("ObjectID3")]
+    public int? ObjectId3 { get; set; }
 
     public int CreatedBy { get; set; }
 

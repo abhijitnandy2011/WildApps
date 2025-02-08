@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using RAppsAPI.Data;
 using RAppsAPI.Models;
+using RAppsAPI.utils;
 using System.Collections.Generic;
 using static RAppsAPI.Data.DBConstants;
 
@@ -9,13 +10,44 @@ namespace RAppsAPI.Services
 {
     public class FolderService(RDBContext dbContext) : IFolderService
     {
-        public async Task<FolderObjectUpdateResponseDTO> Create(string folderName, string attrs, string parentPath, int createdByUserID)
+        public async Task<FolderObjectUpdateResponseDTO> CreateUsingPath(string folderName, string attrs, string parentPath, int createdByUserID)
         {
             throw new NotImplementedException();
         }
 
-        public async Task<FolderObjectUpdateResponseDTO> Create(string folderName, string attrs, int parentFolderID, int createdByUserID)
+        public async Task<FolderObjectUpdateResponseDTO> CreateUsingID(string folderName, string attrs, int parentFolderID, int createdByUserID)
         {
+            try
+            {
+                int count = await dbContext.SystemFolderFiles
+                    .CountAsync(sysff => sysff.VParentFolderId == parentFolderID &&
+                                    sysff.Folder.Name == folderName &&
+                                    sysff.Rstatus == (byte)RStatus.Active);
+                if (count > 0)
+                {
+                    // Error! folder exists
+                    return new FolderObjectUpdateResponseDTO()
+                    {
+                        Code = (int)Constants.ResponseReturnCode.Error,
+                        Message = "Sub folder already exists"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                // TODO: Log exception message/error
+                string exMsg = ex.Message;
+                if (ex.InnerException != null)
+                {
+                    exMsg += "; InnerException:" + ex.InnerException.Message;
+                }
+                return new FolderObjectUpdateResponseDTO()
+                {
+                    Code = (int)Constants.ResponseReturnCode.Error,
+                    Message = "Failed to create sub folder:" + exMsg
+                };
+            }
+            // Add the folder
             using var transaction = dbContext.Database.BeginTransaction();
             try
             {
@@ -77,21 +109,26 @@ namespace RAppsAPI.Services
             catch (Exception ex)
             {
                 transaction.Rollback();
-                // TODO: Log expception message/error                
+                // TODO: Log expception message/error
+                string exMsg = ex.Message;
+                if (ex.InnerException != null)
+                {
+                    exMsg += "; InnerException:" + ex.InnerException.Message;
+                }
                 return new FolderObjectUpdateResponseDTO()
                 {
                     Code = (int)Constants.ResponseReturnCode.Error,
-                    Message = "Failed to create sub folder"
+                    Message = "Failed to create sub folder:" + exMsg
                 };
             }
         }
 
-        public Task<List<FolderObjectDTO>?> Read(string path)
+        public Task<FolderObjectReadResponseDTO> ReadUsingPath(string path)
         {
             throw new NotImplementedException();
         }
 
-        public async Task<List<FolderObjectDTO>?> Read(int parentFolderID)
+        public async Task<FolderObjectReadResponseDTO> ReadUsingID(int parentFolderID)
         {
             try
             {
@@ -105,7 +142,14 @@ namespace RAppsAPI.Services
                     .ToListAsync();
                 if (dbObjList == null)
                 {
-                    return null;
+                    // No file/folder objects in this folder
+                    return new FolderObjectReadResponseDTO()
+                    {
+                        Id = parentFolderID,
+                        Code = (int)Constants.ResponseReturnCode.Success,
+                        Message = "success",
+                        FolderObjects = new List<FolderObjectDTO>()
+                    };
                 }
                 // Make a list
                 var objList = new List<FolderObjectDTO>();
@@ -114,14 +158,14 @@ namespace RAppsAPI.Services
                     var objId = dbSysFolderFile.VFolderId ?? dbSysFolderFile.VFileId;
                     if (objId == null)
                     {
-                        // Log error
+                        // Log error & skip
                     }
-                    else 
+                    else
                     {
                         var objName = dbSysFolderFile.Folder?.Name ?? dbSysFolderFile.File?.Name;
                         if (objName == null)
                         {
-                            // Log error
+                            // Log error & skip
                         }
                         else
                         {
@@ -136,13 +180,13 @@ namespace RAppsAPI.Services
                             // TODO: This should come from the DB where the app to URL mapping will be stored when the app 
                             // registers.
                             string openUrl = "";
-                            switch(objType)
+                            switch (objType)
                             {
                                 case FolderObjectType.Folder:
                                     openUrl = "/files/" + objId;
                                     break;
                                 case FolderObjectType.File:
-                                    switch(dbSysFolderFile.File?.FileTypeId)
+                                    switch (dbSysFolderFile.File?.FileTypeId)
                                     {
                                         case 1:
                                             openUrl = "/notepad/" + objId;
@@ -172,32 +216,187 @@ namespace RAppsAPI.Services
                             });
                         }
                     }
-
-
-                    
-
-                }                
-                return objList;
+                }
+                return new FolderObjectReadResponseDTO()
+                {
+                    Id = parentFolderID,
+                    Code = (int)Constants.ResponseReturnCode.Success,
+                    Message = "success",
+                    FolderObjects = objList
+                };
             }
             catch (Exception ex)
             {
                 // TODO: Log error
-                return new List<FolderObjectDTO>();
-            }            
+                string exMsg = ex.Message;
+                if (ex.InnerException != null)
+                {
+                    exMsg += "; InnerException:" + ex.InnerException.Message;
+                }
+                return new FolderObjectReadResponseDTO()
+                {
+                    Id = parentFolderID,
+                    Code = (int)Constants.ResponseReturnCode.InternalError,
+                    Message = "Failed to read folder:" + exMsg,
+                    FolderObjects = new List<FolderObjectDTO>()
+                };
+            }
         }
 
-        public async Task<FolderObjectUpdateResponseDTO> updateFolder(int folderID, string newName, string attrs, string modifiedByUserName)
+
+        // TODO: Description update, return error DTO
+        public async Task<FolderObjectUpdateResponseDTO> UpdateUsingID(
+            int folderID, string newName, string newAttrs, string newDescription, int modifiedByUserName)
         {
             try
             {
-                return new FolderObjectUpdateResponseDTO();
+                var vfolder = await dbContext.VFolders.Where(f => f.Id == folderID).FirstOrDefaultAsync();
+                if (vfolder != null)
+                {
+                    var oldName = vfolder.Name;
+                    var oldAttrs = vfolder.Attrs;
+                    var oldDesc = vfolder.Description;
+                    vfolder.Name = (newName.Trim() != "") ? newName: oldName;
+                    vfolder.Attrs =( newAttrs.Trim() != "") ? newAttrs: oldAttrs;
+                    vfolder.Description = (newDescription != "" ? newDescription: oldDesc);
+                    vfolder.Path = Utils.ReplaceLastOccurrence(vfolder.Path, oldName, newName);
+                    vfolder.LastUpdatedBy = modifiedByUserName;
+                    vfolder.LastUpdatedDate = DateTime.Now;
+                    // log                
+                    dbContext.logMsg("FolderService", 0, $"Folder update", DBConstants.ADMIN_USER_ID,
+                        $"Folder {oldName},{oldAttrs} updated to {vfolder.Name},{vfolder.Attrs}", vfolder.Id);
+                    dbContext.SaveChanges();
+                    return new FolderObjectUpdateResponseDTO
+                    {
+                        Id = folderID,
+                        ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                        Code = (int)Constants.ResponseReturnCode.Success,
+                        Message = "Folder updated"
+                    };
+                }
+                else
+                {
+                    // Error
+                    return new FolderObjectUpdateResponseDTO
+                    {
+                        Id = folderID,
+                        ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                        Code = (int)Constants.ResponseReturnCode.Error,
+                        Message = $"Folder does not exist"
+                    };
+                }
             }
             catch (Exception ex)
             {
                 // TODO: Log error
-                return new FolderObjectUpdateResponseDTO();
+                string exMsg = ex.Message;
+                if (ex.InnerException != null)
+                {
+                    exMsg += "; InnerException:" + ex.InnerException.Message;
+                }
+                return new FolderObjectUpdateResponseDTO
+                {
+                    Id = folderID,
+                    ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                    Code = (int)Constants.ResponseReturnCode.InternalError,
+                    Message = "Failed to update folder:" + exMsg
+                };
             }
-            
+        }
+
+        public async Task<FolderObjectUpdateResponseDTO> DeleteUsingID(int folderID, int deletedByUserID)
+        {
+            try
+            {
+                var dbObjList = await dbContext.SystemFolderFiles
+                    .Include(sysff => sysff.Folder)                    
+                    .Where(r => r.VFolderId == folderID && r.Rstatus == (byte)RStatus.Active)
+                    .ToListAsync();
+                if (dbObjList == null)
+                {
+                    // Error: should not happen
+                    return new FolderObjectUpdateResponseDTO()
+                    {
+                        Id = folderID,
+                        ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                        Code = (int)Constants.ResponseReturnCode.InternalError,
+                        Message = $"Internal error",
+                    };
+                }
+                else if (dbObjList.Count == 0)
+                {
+                    // Error: no folder with given ID
+                    return new FolderObjectUpdateResponseDTO()
+                    {
+                        Id = folderID,
+                        ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                        Code = (int)Constants.ResponseReturnCode.Error,
+                        Message = $"Folder not found",
+                    };
+                }
+                else if (dbObjList.Count > 1)
+                {
+                    // Error: impossible to have more than 1 mapping   
+                    return new FolderObjectUpdateResponseDTO()
+                    {
+                        Id = folderID,
+                        ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                        Code = (int)Constants.ResponseReturnCode.InternalError,
+                        Message = $"Folder has multiple mappings",
+                    };
+
+                }                
+                else
+                {
+                    // There is just 1 mapping as expected, try deleting                    
+                    var sysff = dbObjList[0];
+                    if (sysff.Folder != null)
+                    {
+                        sysff.Rstatus = (byte)RStatus.Inactive;   // soft delete the mapping
+                        sysff.LastUpdatedBy = deletedByUserID;
+                        sysff.LastUpdatedDate = DateTime.Now;
+                        sysff.Folder.Rstatus = (byte)RStatus.Inactive; // soft delete the vfolder
+                        sysff.Folder.LastUpdatedBy = deletedByUserID;
+                        sysff.Folder.LastUpdatedDate = DateTime.Now;
+                        dbContext.logMsg("FolderService", 0, $"Folder delete", DBConstants.ADMIN_USER_ID,
+                             $"Folder id {sysff.VFolderId} deleted", sysff.VFolderId);
+                        dbContext.SaveChanges();
+                    }
+                    else
+                    {
+                        return new FolderObjectUpdateResponseDTO()
+                        {
+                            Id = folderID,
+                            ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                            Code = (int)Constants.ResponseReturnCode.InternalError,
+                            Message = $"Folder is present in mapping but not in folders table",
+                        };
+                    }                    
+                    
+                }
+                return new FolderObjectUpdateResponseDTO()
+                {
+                    Id = folderID,
+                    ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                    Code = (int)Constants.ResponseReturnCode.Success,
+                    Message = "Folder deleted",
+                };
+            }
+            catch (Exception ex)
+            {
+                // TODO: Log error in file & do not return to user. The below code is only during dev.
+                string exMsg = ex.Message;
+                if (ex.InnerException != null) {
+                    exMsg += "; InnerException:" + ex.InnerException.Message;
+                }
+                return new FolderObjectUpdateResponseDTO
+                {
+                    Id = folderID,
+                    ObjectType = (int)DBConstants.FolderObjectType.Folder,
+                    Code = (int)Constants.ResponseReturnCode.InternalError,                    
+                    Message = "Failed to delete folder:" + exMsg
+                };
+            }
         }
     }
 }
