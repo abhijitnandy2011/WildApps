@@ -121,5 +121,50 @@ namespace RAppsAPI.Controllers
             }
             return Ok(new { dbPath });
         }
+
+        [HttpPost("uploadmany"), DisableRequestSizeLimit]
+        public async Task<IActionResult> UploadManyFiles([FromForm] UploadManyFilesDTO model)
+        {
+            if (model.Files == null || model.Files.Count == 0)
+            {
+                return BadRequest("Invalid files");
+            }
+            // Save the files
+            var response = new Dictionary<string, string>();
+            foreach (var file in model.Files)
+            {
+                if(file == null || file.Length == 0)
+                {
+                    response.Add(file?.FileName ?? "file", "Invalid file");                    
+                }
+                else
+                {
+                    var folderName = Path.Combine("Resources", "Uploads");
+                    var pathToSave = Path.Combine(Directory.GetCurrentDirectory(), folderName);
+                    if (!Directory.Exists(pathToSave))
+                    {
+                        Directory.CreateDirectory(pathToSave);
+                    }
+                    var fileName = file.FileName;
+                    var fullPath = Path.Combine(pathToSave, fileName);
+                    var dbPath = Path.Combine(folderName, fileName);
+                    if (System.IO.File.Exists(dbPath))
+                    {
+                        response.Add(fileName, "File exists");
+                    }
+                    else
+                    {
+                        using (var memStream = new MemoryStream())
+                        {
+                            await file.CopyToAsync(memStream);
+                            await System.IO.File.WriteAllBytesAsync(fullPath, memStream.ToArray());
+                        }
+                        response.Add(fileName, dbPath);
+                    }                      
+                    
+                }
+            }            
+            return Ok(new { response });
+        }
     }
 }
