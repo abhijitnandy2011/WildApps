@@ -111,7 +111,7 @@ namespace RAppsAPI.Controllers
             var fileName = model.File.FileName;
             var fullPath = Path.Combine(pathToSave, fileName);
             var dbPath = Path.Combine(folderName, fileName);
-            if (System.IO.File.Exists(dbPath))
+            if (System.IO.File.Exists(fullPath))
             {
                 return BadRequest($"File exists");
             }
@@ -148,7 +148,7 @@ namespace RAppsAPI.Controllers
                     var fileName = file.FileName;
                     var fullPath = Path.Combine(pathToSave, fileName);
                     var dbPath = Path.Combine(folderName, fileName);
-                    if (System.IO.File.Exists(dbPath))
+                    if (System.IO.File.Exists(fullPath))
                     {
                         response.Add(fileName, "File exists");
                     }
@@ -165,6 +165,25 @@ namespace RAppsAPI.Controllers
                 }
             }            
             return Ok(new { response });
+        }
+
+
+        [HttpGet("download/{name}")]
+        public async Task<IActionResult> DownloadByName(string name)
+        {
+            var folderName = Path.Combine("Resources", "Downloads");
+            var pathToSave = Path.Combine(Directory.GetCurrentDirectory(), folderName);                        
+            var fullPath = Path.Combine(pathToSave, name);
+            if (!System.IO.File.Exists(fullPath))
+            {
+                return BadRequest("File does not exist");
+            }
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(fullPath);
+            var fileContentResult = new FileContentResult(fileBytes, "application/octet-stream")
+            {
+                FileDownloadName = name
+            };
+            return fileContentResult;
         }
     }
 }
