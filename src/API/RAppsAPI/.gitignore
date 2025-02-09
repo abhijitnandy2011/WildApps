@@ -2,4 +2,5 @@ RAppsAPI/obj
 RAppsAPI/bin
 RAppsAPI/Migrations
 .vs
-
+RAppsAPI/Resources
+RAppsAPI/RAppsAPI.csproj.user

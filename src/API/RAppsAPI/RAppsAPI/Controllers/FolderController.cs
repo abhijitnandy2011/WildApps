@@ -93,5 +93,33 @@ namespace RAppsAPI.Controllers
                 return StatusCode(500, ex.Message);
             }
         }
+
+        [HttpPost("upload"), DisableRequestSizeLimit]
+        public async Task<IActionResult> UploadFile([FromForm]UploadFileDTO model)
+        {
+            if (model.File == null || model.File.Length == 0)
+            {
+                return BadRequest("Invalid file");
+            }
+
+            var folderName = Path.Combine("Resources", "Uploads");
+            var pathToSave = Path.Combine(Directory.GetCurrentDirectory(), folderName);
+            if (!Directory.Exists(pathToSave))
+            {
+                Directory.CreateDirectory(pathToSave);
+            }
+            var fileName = model.File.FileName;
+            var fullPath = Path.Combine(pathToSave, fileName);
+            var dbPath = Path.Combine(folderName, fileName);
+            if (System.IO.File.Exists(dbPath))
+            {
+                return BadRequest($"File exists");
+            }
+            using(var stream = new FileStream(fullPath, FileMode.Create))
+            {
+                model.File.CopyTo(stream);
+            }
+            return Ok(new { dbPath });
+        }
     }
 }
