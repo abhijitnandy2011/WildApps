@@ -41,13 +41,18 @@ CREATE TYPE dbo.UDT_CellStyle FROM [nvarchar](1024) NOT NULL;
 
 CREATE TYPE dbo.UDT_Bool FROM bit NOT NULL;
 
-CREATE TYPE dbo.UDT_Path FROM [nvarchar](max) NOT NULL;
+
+-- TODO
+CREATE TYPE dbo.UDT_Path FROM [nvarchar](800) NOT NULL;
+
 CREATE TYPE dbo.UDT_LogDescription FROM [nvarchar](max) NOT NULL;
 CREATE TYPE dbo.UDT_Description FROM [nvarchar](max) NOT NULL;
+CREATE TYPE dbo.UDT_Description_Small_Opt FROM [nvarchar](800) NULL;
 
 
 -- Schema reqd later for app
-CREATE SCHEMA rsa;
+CREATE SCHEMA zsa;
+CREATE SCHEMA mpm;
 
 
 -- Creating the tables
@@ -103,12 +108,14 @@ CREATE TABLE [dbo].[VRoles](
 )
 
 
+-- TODO
 DROP TABLE [dbo].[VSystems];
 CREATE TABLE dbo.VSystems(
     ID           UDT_ID IDENTITY(1,1),
     Name         UDT_Name_Big,  -- TODO: make UNIQUE, non-clustered index to ensure unique name
     AssignedTo    UDT_ID_Opt,   -- not assigned(NULL)/currently assigned to(VUserID)
 	RootFolderID  UDT_ID,       -- TODO: must be UNIQUE, get the path by lookup in VFolders table
+	Description   UDT_Description_Small_Opt,
 	[CreatedBy]      UDT_ID,
 	[CreatedDate]    UDT_DateTime,
 	[LastUpdatedBy]  UDT_ID_Opt,
@@ -118,14 +125,16 @@ CREATE TABLE dbo.VSystems(
 )
 
 
+-- TODO
 DROP TABLE dbo.VFolders;
 CREATE TABLE dbo.VFolders(
     ID            UDT_ID IDENTITY(1,1),
     Name          UDT_Name_Big,   -- TODO: only one named 'root'
 	Attrs  		  UDT_Name,    -- unix style 'xxx', so 'rw' means read & write allowed for all users
 	Path          UDT_Path,      -- TODO: make UNIQUE, unix style path(TODO: INSERT/UPDATE TRIGGER to check the path components & whether they are in fact in the mentioned hierarchy)
-	PathIDs       UDT_Path,      -- UNUSED for now, comma separated list of ancestor FolderIDs, oldest first(TODO: TRIGGERS to check the IDs)
-    CreatedBy       UDT_ID,
+	ParentIDs       UDT_Path,      -- UNUSED for now, comma separated list of ancestor FolderIDs, oldest first(TODO: TRIGGERS to check the IDs)
+    Description   UDT_Description_Small_Opt,
+	CreatedBy       UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
@@ -134,12 +143,14 @@ CREATE TABLE dbo.VFolders(
 )
 
 
+-- TODO
 DROP TABLE dbo.VFiles;
 CREATE TABLE dbo.VFiles(
     ID            UDT_ID IDENTITY(1,1),
     Name          UDT_Name_Big,     -- TODO: cant be 'root'
     FileTypeID    UDT_ID, -- to forward to proper webapp when opening or getting file info
     Attrs  		  UDT_Name,
+	Description   UDT_Description_Small_Opt,
     CreatedBy       UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -179,27 +190,70 @@ CREATE TABLE dbo.FileTypes(
 )
 
 
+-- TODO
+DROP TABLE dbo.Notifcations;
+CREATE TABLE dbo.Notifications(
+    ID               UDT_ID IDENTITY(1,1),
+	Description      UDT_Name_Big,
+	TaskID1          UDT_ID_Opt,
+	TaskID2          UDT_ID_Opt,
+	TaskStatus1      UDT_ID_Opt,
+	TaskStatus2      UDT_ID_Opt,
+    CreatedBy        UDT_ID,		-- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_Notifications PRIMARY KEY (ID)	
+)
+
+
+-- TODO
+DROP TABLE dbo.Tasks;
+CREATE TABLE dbo.Tasks(
+    ID               UDT_ID IDENTITY(1,1),
+	Description      UDT_Name_Big,
+	TaskStatus       UDT_ID,
+	AppID            UDT_ID_Opt,   -- the app handling the task
+    CreatedBy        UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_Tasks PRIMARY KEY (ID)	
+)
+
+
+-- TODO
 DROP TABLE dbo.AuthLogs;
 CREATE TABLE dbo.AuthLogs(    
 	ID            UDT_ID IDENTITY(1,1),    
 	Module        UDT_Name,     -- Various file types in the system
-    ErrorMsg      UDT_Name_Med,     -- Various file types in the system
+    Code          UDT_ID,
+	Msg           UDT_Name_Med,     -- Various file types in the system
 	Description   UDT_LogDescription,     -- Various file types in the system
+	ObjectID1     UDT_ID,    
+	ObjectID2     UDT_ID, 
+	ObjectID3     UDT_ID, 
     CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
     CreatedDate      UDT_DateTime,
 	CONSTRAINT PK_AuthLogs PRIMARY KEY (ID)	
 )
 
 
-
+-- TODO
 DROP TABLE dbo.SysLogs;
 CREATE TABLE dbo.SysLogs(    
-	ID            UDT_ID IDENTITY(1,1),    
-	Module        UDT_Name,     -- Various file types in the system
-    ErrorMsg      UDT_Name_Med,     -- Various file types in the system
-	Description   UDT_LogDescription,     -- Various file types in the system
+	ID              UDT_ID IDENTITY(1,1),    
+	Module          UDT_Name,
+	Code            UDT_ID,
+    Msg             UDT_Name_Med,      -- error msg with interpolated column names
+	Description     UDT_LogDescription,   -- desc with interpolated column names to replace with values in other columns in the same row
+	ObjectID1       UDT_ID_Opt,    -- distinct ID fields instead of parsing it from description. Description can interpolate these IDs
+	ObjectID2       UDT_ID_Opt, 
+	ObjectID3       UDT_ID_Opt,    -- 3 IDs maybe needed when a file is moved from FolderID 1 to FolderID 2 
     CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
-    CreatedDate      UDT_DateTime,
+    CreatedDate     UDT_DateTime,
 	CONSTRAINT PK_SysLogs PRIMARY KEY (ID)	
 )
 
@@ -299,53 +353,70 @@ CREATE TABLE dbo.FileTypeApps(
 
 ---------------------------------------------
 
-DROP TABLE rsa.Workbooks;
-CREATE TABLE rsa.Workbooks(
-    ID                UDT_ID IDENTITY(1,1),
-    VFileID           UDT_ID,    
-    Name              UDT_Name,  -- same as VFile.Name
-    LastOpenedSheet   UDT_Sequence,
-    LastFocusCellRow  UDT_CellRow,
-    LastFocusCellCol  UDT_CellColumn,
-    Settings          UDT_Settings_Opt,   -- Other settings go here in JSON string format - can be columnized if necessary later for searching/indexing faster
-    CreatedBy        UDT_ID,
-    CreatedDate       UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-    CONSTRAINT PK_RSA_WorkbooksID PRIMARY KEY (ID)
-);
 
 
-DROP TABLE rsa.Sheets;
-CREATE TABLE rsa.Sheets(
-    ID               UDT_ID IDENTITY(1,1),
-    WorkbookID       UDT_ID,
+
+DROP TABLE mpm.Sheets;
+CREATE TABLE mpm.Sheets(
+    VFileID          UDT_ID,
+	SheetID          UDT_ID,
     Name             UDT_Name,
-    SheetNum         UDT_Sequence,
-    Style            UDT_Style,
-    StartRowNum      UDT_CellRow,
-    StartColNum      UDT_CellColumn,
-    EndRowNum        UDT_CellRow,
-    EndColNum        UDT_CellColumn,
+    SheetNum         UDT_Sequence,   -- separate from SheetID as the sheet order can be changed, wont change sheet id then
+    Style            UDT_Style,     -- any colors or bold applied to the sheet name
     CreatedBy        UDT_ID,
-    CreatedDate       UDT_DateTime,
+    CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
-    CONSTRAINT PK_RSA_SheetID PRIMARY KEY (ID),
+    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, SheetID),
+);
+
+DROP TABLE mpm.Ranges;
+CREATE TABLE mpm.Ranges(
+    VFileID          UDT_ID,
+	RangeID          UDT_ID,
+    Name             UDT_Name,
+	SheetID          UDT_ID,    -- in which sheet to export the range when downloading
+	HeaderTableID    UDT_ID,
+	DetailTableID    UDT_ID,
+    RangeNum         UDT_Sequence,   -- within same sheet, there can be multiple ranges    
+    CreatedBy        UDT_ID,
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate   UDT_DateTime_Opt,
+    RStatus           UDT_RowStatus,
+    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, RangeID),
 );
 
 
-DROP TABLE rsa.XlTables;
-CREATE TABLE rsa.XlTables(
-    ID               UDT_ID IDENTITY(1,1),
-    SheetID          UDT_ID,   
+DROP TABLE mpm.Series;
+CREATE TABLE mpm.Series(
+    VFileID          UDT_ID,
+	SeriesID         UDT_ID, 
+	Name             UDT_Name,
+	SheetID          UDT_ID,    
+	HeaderTableID    UDT_ID,
+	DetailTableID    UDT_ID,
+    SeriesNum        UDT_Sequence,
+    InfoTable1ID     UDT_ID_Opt,
+	InfoTable2ID     UDT_ID_Opt,
+    CreatedBy        UDT_ID,
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate   UDT_DateTime_Opt,
+    RStatus           UDT_RowStatus,
+    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, SeriesID),
+);
+
+
+DROP TABLE mpm.MTables;
+CREATE TABLE mpm.MTables(
+    VFileID          UDT_ID,
+	TableID          UDT_ID,  
     Name             UDT_Name_med,
-    StartRowNum      UDT_CellRow,
-    StartColNum      UDT_CellColumn,
-    EndRowNum        UDT_CellRow,
-    EndColNum        UDT_CellColumn,    
+    NumRows          UDT_CellRow,    
+	NumCols          UDT_CellColumn,
+	TableType        UDT_ID,          -- Range header, Range detail, Series header/detail, exact series detail type or master table
     Style            UDT_CellStyle,   
     HeaderRow        UDT_Bool,
     TotalRow         UDT_Bool,
@@ -353,17 +424,18 @@ CREATE TABLE rsa.XlTables(
     BandedColumns    UDT_Bool,
     FilterButton     UDT_Bool,
     CreatedBy        UDT_ID,
-    CreatedDate       UDT_DateTime,
+    CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
-    CONSTRAINT PK_RSA_XlTableID PRIMARY KEY (ID),
+    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, TableID),
 );
 
 
-DROP TABLE rsa.Cells;
-CREATE TABLE rsa.Cells(
-    SheetID          UDT_ID,
+DROP TABLE mpm.Cells;
+CREATE TABLE mpm.Cells(
+    VFileID          UDT_ID,
+	TableID          UDT_ID,  
     RowNum           UDT_CellRow,
     ColNum           UDT_CellColumn,
     Value            UDT_CellValue,
@@ -371,11 +443,11 @@ CREATE TABLE rsa.Cells(
     Format           UDT_CellFormat,
     Style            UDT_CellStyle,
     CreatedBy        UDT_ID,
-    CreatedDate       UDT_DateTime,
+    CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
-    CONSTRAINT PK_RSA_CellID PRIMARY KEY (SheetID, RowNum, ColNum)
+    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, TableID, RowNum, ColNum)
 );
 
 

@@ -4,11 +4,15 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE PROCEDURE dbo.logError
+ALTER PROCEDURE dbo.logMsg
 	@Module UDT_Name,
-	@ErrorMsg UDT_Name_Med,
+	@Code UDT_ID,
+	@Msg UDT_Name_Med,
 	@Description UDT_LogDescription = '',
-	@User int = 2
+	@User int = 2,
+	@ObjectID1       UDT_ID_Opt = NULL,
+	@ObjectID2       UDT_ID_Opt = NULL,
+	@ObjectID3       UDT_ID_Opt = NULL
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -19,8 +23,12 @@ BEGIN
 	INSERT INTO dbo.SysLogs VALUES
 	(
 	@Module,
-	@ErrorMsg,
-	@Description,
+	@Code,
+	@Msg,
+	@Description,	
+	@ObjectID1,
+	@ObjectID2,
+	@ObjectID3,
 	@User,
 	GETDATE()
 	)

@@ -86,7 +86,7 @@ INSERT INTO dbo.VFolders
 Name,       
 Attrs,
 Path,
-PathIDs,
+ParentIDs,
 CreatedBy,   
 CreatedDate,
 RStatus
@@ -155,7 +155,7 @@ INSERT INTO dbo.VFolders
 Name,       
 Attrs,
 Path,
-PathIDs,
+ParentIDs,
 CreatedBy,   
 CreatedDate,
 RStatus
@@ -204,7 +204,7 @@ INSERT INTO dbo.VFolders
 Name,       
 Attrs,
 Path,
-PathIDs,
+ParentIDs,
 CreatedBy,   
 CreatedDate,
 RStatus
