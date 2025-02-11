@@ -1,14 +1,10 @@
 import { Component, EventEmitter, Output } from '@angular/core';
+import { APP_NAME } from '../settings/app.settings';
 import { KENDO_APPBAR } from '@progress/kendo-angular-navigation';
 import { KENDO_BADGECONTAINER } from '@progress/kendo-angular-indicators';
 import { KENDO_ICONS } from '@progress/kendo-angular-icons';
 import { KENDO_LAYOUT } from '@progress/kendo-angular-layout';
-import {
-  SVGIcon,
-  menuIcon,
-  bellIcon,
-  paletteIcon,
-} from '@progress/kendo-svg-icons';
+import { SVGIcon, menuIcon, bellIcon, paletteIcon } from '@progress/kendo-svg-icons';
 
 @Component({
   selector: 'app-header',
@@ -18,6 +14,9 @@ import {
 })
 export class HeaderComponent {
   @Output() public toggle = new EventEmitter();
+
+  public appName = APP_NAME;
+
   public menuIcon: SVGIcon = menuIcon;
   public bellIcon: SVGIcon = bellIcon;
   public kendokaAvatar = 'assets/github.svg';

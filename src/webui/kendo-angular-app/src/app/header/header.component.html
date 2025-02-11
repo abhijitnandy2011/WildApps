@@ -1,16 +1,12 @@
 <kendo-appbar #appbar position="top" themeColor="dark">
   <kendo-appbar-section>
     <button kendoButton fillMode="flat">
-      <kendo-svgicon
-        [icon]="menuIcon"
-        themeColor="dark"
-        (click)="onButtonClick()"
-      ></kendo-svgicon>
+      <kendo-svgicon [icon]="menuIcon" themeColor="dark" (click)="onButtonClick()"></kendo-svgicon>
     </button>
   </kendo-appbar-section>
 
   <kendo-appbar-section>
-    <h1 class="title">ZApps Platform</h1>
+    <h1 class="title">{{ appName }}</h1>
   </kendo-appbar-section>
 
   <kendo-appbar-spacer width="32px"></kendo-appbar-spacer>
@@ -36,11 +32,6 @@
   </kendo-appbar-section>
 
   <kendo-appbar-section>
-    <kendo-avatar
-      [imageSrc]="kendokaAvatar"
-      shape="circle"
-      width="26px"
-      height="26px"
-    ></kendo-avatar>
+    <kendo-avatar [imageSrc]="kendokaAvatar" shape="circle" width="26px" height="26px"></kendo-avatar>
   </kendo-appbar-section>
 </kendo-appbar>
