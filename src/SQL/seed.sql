@@ -315,7 +315,26 @@ GETDATE(),
 dbo.CONST('RSTATUS_ACTIVE')
 )
 
--- TODO: Add Car Manager app
+-- Add Car Manager app
+INSERT INTO dbo.VApps
+(
+Name,
+Description,
+Owner,
+Settings,
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+'Car Manager',  
+'Car Manager app',  
+dbo.CONST('VUSERS_ADMIN'),
+'',
+dbo.CONST('VUSERS_SYSTEM'),
+GETDATE(),
+dbo.CONST('RSTATUS_ACTIVE')
+)
 
 
 --------------------------------------------------------------------------------
@@ -350,6 +369,23 @@ RStatus
 VALUES (
 'RSheet',   
 'RSheet file',
+dbo.CONST('VUSERS_SYSTEM'),
+GETDATE(),
+dbo.CONST('RSTATUS_ACTIVE')
+)
+
+-- Car Mgr file type
+INSERT INTO dbo.FileTypes
+(
+Name,       
+Description,
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+'Car Mgr',   
+'Car Mgr file',
 dbo.CONST('VUSERS_SYSTEM'),
 GETDATE(),
 dbo.CONST('RSTATUS_ACTIVE')
@@ -390,6 +426,23 @@ RStatus
 VALUES (
 2,
 2,
+dbo.CONST('VUSERS_SYSTEM'),
+GETDATE(),
+dbo.CONST('RSTATUS_ACTIVE')
+)
+
+-- Car Mgr type can be opened by Car Manager app
+INSERT INTO dbo.FileTypeApps
+(
+VFileTypeID,       
+VAppID,
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+3,
+3,
 dbo.CONST('VUSERS_SYSTEM'),
 GETDATE(),
 dbo.CONST('RSTATUS_ACTIVE')
@@ -441,6 +494,25 @@ dbo.CONST('RSTATUS_ACTIVE')
 )
 
 
+-- 'CarsV1' RSheets file
+INSERT INTO dbo.VFiles
+(
+Name,       
+FileTypeID,
+Attrs,
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+'CarsV1',
+3,    -- FileTypeID
+'',
+dbo.CONST('VUSERS_SYSTEM'),
+GETDATE(),
+dbo.CONST('RSTATUS_ACTIVE')
+)
+
 
 -- Map Readme text file to folder '/systems/s1'
 INSERT INTO dbo.SystemFolderFiles
@@ -489,6 +561,28 @@ dbo.CONST('RSTATUS_ACTIVE')
 )
 
 
+-- Map CarsV1 to folder '/systems/s1'
+INSERT INTO dbo.SystemFolderFiles
+(
+VSystemID,
+VFileID,
+VFolderID,       
+Link,           
+VParentFolderID,
+CreatedBy,   
+CreatedDate,
+RStatus
+)
+VALUES (
+1,  -- VSystemID,   
+3,	 -- VFileID
+NULL,	  -- VFolderID      
+0,	 -- Link           
+3,	 -- VParentFolderID
+dbo.CONST('VUSERS_SYSTEM'),
+GETDATE(),
+dbo.CONST('RSTATUS_ACTIVE')
+)
 
 
 ------------------------------------------------------------------------

@@ -38,6 +38,7 @@ CREATE TYPE dbo.UDT_CellValue FROM [nvarchar](2048) NOT NULL;
 CREATE TYPE dbo.UDT_CellFormula FROM [nvarchar](1024) NOT NULL;
 CREATE TYPE dbo.UDT_CellFormat FROM [nvarchar](128) NOT NULL;
 CREATE TYPE dbo.UDT_CellStyle FROM [nvarchar](1024) NOT NULL;
+CREATE TYPE dbo.UDT_CellComment FROM [nvarchar](1024) NOT NULL;
 
 CREATE TYPE dbo.UDT_Bool FROM bit NOT NULL;
 
@@ -191,10 +192,11 @@ CREATE TABLE dbo.FileTypes(
 
 
 -- TODO
-DROP TABLE dbo.Notifcations;
+DROP TABLE dbo.Notifications;
 CREATE TABLE dbo.Notifications(
     ID               UDT_ID IDENTITY(1,1),
-	Description      UDT_Name_Big,
+	Msg	             UDT_Name_Med,   -- for display on bell icon list
+	Description      UDT_Description,  -- when clicked, can show bigger detailed description
 	TaskID1          UDT_ID_Opt,
 	TaskID2          UDT_ID_Opt,
 	TaskStatus1      UDT_ID_Opt,
@@ -352,103 +354,6 @@ CREATE TABLE dbo.FileTypeApps(
 
 
 ---------------------------------------------
-
-
-
-
-DROP TABLE mpm.Sheets;
-CREATE TABLE mpm.Sheets(
-    VFileID          UDT_ID,
-	SheetID          UDT_ID,
-    Name             UDT_Name,
-    SheetNum         UDT_Sequence,   -- separate from SheetID as the sheet order can be changed, wont change sheet id then
-    Style            UDT_Style,     -- any colors or bold applied to the sheet name
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, SheetID),
-);
-
-DROP TABLE mpm.Ranges;
-CREATE TABLE mpm.Ranges(
-    VFileID          UDT_ID,
-	RangeID          UDT_ID,
-    Name             UDT_Name,
-	SheetID          UDT_ID,    -- in which sheet to export the range when downloading
-	HeaderTableID    UDT_ID,
-	DetailTableID    UDT_ID,
-    RangeNum         UDT_Sequence,   -- within same sheet, there can be multiple ranges    
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, RangeID),
-);
-
-
-DROP TABLE mpm.Series;
-CREATE TABLE mpm.Series(
-    VFileID          UDT_ID,
-	SeriesID         UDT_ID, 
-	Name             UDT_Name,
-	SheetID          UDT_ID,    
-	HeaderTableID    UDT_ID,
-	DetailTableID    UDT_ID,
-    SeriesNum        UDT_Sequence,
-    InfoTable1ID     UDT_ID_Opt,
-	InfoTable2ID     UDT_ID_Opt,
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, SeriesID),
-);
-
-
-DROP TABLE mpm.MTables;
-CREATE TABLE mpm.MTables(
-    VFileID          UDT_ID,
-	TableID          UDT_ID,  
-    Name             UDT_Name_med,
-    NumRows          UDT_CellRow,    
-	NumCols          UDT_CellColumn,
-	TableType        UDT_ID,          -- Range header, Range detail, Series header/detail, exact series detail type or master table
-    Style            UDT_CellStyle,   
-    HeaderRow        UDT_Bool,
-    TotalRow         UDT_Bool,
-    BandedRows       UDT_Bool,
-    BandedColumns    UDT_Bool,
-    FilterButton     UDT_Bool,
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, TableID),
-);
-
-
-DROP TABLE mpm.Cells;
-CREATE TABLE mpm.Cells(
-    VFileID          UDT_ID,
-	TableID          UDT_ID,  
-    RowNum           UDT_CellRow,
-    ColNum           UDT_CellColumn,
-    Value            UDT_CellValue,
-    Formula          UDT_CellFormula,  -- maybe manage this in a separate formula table for optimum checking with dependencies of the formula(to decide when to call calculate())
-    Format           UDT_CellFormat,
-    Style            UDT_CellStyle,
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_SheetID PRIMARY KEY (VFileID, TableID, RowNum, ColNum)
-);
 
 
 

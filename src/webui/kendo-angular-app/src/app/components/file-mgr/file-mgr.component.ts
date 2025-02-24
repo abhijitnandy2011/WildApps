@@ -26,6 +26,7 @@ import {
   downloadIcon,
 } from '@progress/kendo-svg-icons';
 import { FolderService } from '../../services/folder.service';
+import { GetFolderContentsResponse } from '../../models/get-folder-contents-response';
 
 @Component({
   selector: 'app-file-mgr',
@@ -93,15 +94,18 @@ export class FileMgrComponent {
         //debugger;
         //this.responseObjList = result;
         console.log(result);
-        result.forEach((res: FolderObjectResponse) => {
-          this.gridData.push({
-            ID: res.id,
-            ObjName: res.name,
-            ObjType: res.objectType == 1 ? 'Folder' : 'File',
-            LastModifiedDate: res.createdDate,
-            Link: res.openUrl,
+        if (result instanceof GetFolderContentsResponse) {
+          /// ^^^^^^ this is FAILING TODO
+          result.folderObjects.forEach((res: FolderObjectResponse) => {
+            this.gridData.push({
+              ID: res.id,
+              ObjName: res.name,
+              ObjType: res.objectType == 1 ? 'Folder' : 'File',
+              LastModifiedDate: res.createdDate,
+              Link: res.openUrl,
+            });
           });
-        });
+        }
       },
       (error) => console.log('FileMgrComponent:ngOnInit: Error during API call', error),
       () => console.log('FileMgrComponent:ngOnInit: getSysObjects() completed')
