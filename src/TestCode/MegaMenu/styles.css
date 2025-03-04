@@ -101,18 +101,60 @@ body {
 /* Column-specific widths */
 .level-1 {
     min-width: 180px;
+    background-color: #2c3e50;
+    margin: -20px;
+    padding: 20px;
+    border-radius: 8px 0 0 8px;
+}
+
+.level-1 h3 {
+    color: #fff !important;
+    border-bottom-color: #3498db !important;
+}
+
+.level-1 ul li a {
+    color: #ecf0f1 !important;
+}
+
+.level-1 ul li a:hover {
+    background-color: #34495e !important;
+    color: #3498db !important;
+}
+
+.level-1 ul li a i {
+    opacity: 1;
+    color: #3498db;
 }
 
 .level-2 {
     min-width: 220px;
+    background-color: #f5f6f7;
+    margin: -20px 0;
+    padding: 20px;
+    margin-left: 15px;
+    position: relative;
+    border-left: 1px solid #e1e4e8;
+}
+
+.level-2 h3 {
+    color: #2c3e50;
+}
+
+.level-2 ul li a:hover {
+    background-color: #e9ecef;
 }
 
 .level-3 {
     min-width: 180px;
+    margin: -20px 0;
+    padding: 20px;
+    position: relative;
+    border-left: 1px solid #e1e4e8;
 }
 
 .mega-menu-column:last-child {
     border-right: none;
+    border-radius: 0 8px 8px 0;
 }
 
 .mega-menu-column h3 {
@@ -155,7 +197,7 @@ body {
 /* Image Preview Styles */
 .image-preview {
     position: absolute;
-    left: calc(100% - 180px);
+    left: calc(100% - 187px);
     top: 30px;
     width: 160px;
     height: 160px;
