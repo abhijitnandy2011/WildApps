@@ -4,28 +4,37 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace RAppsAPI.Data;
+namespace EFCore_DBLibrary;
 
-[Table("XlTables", Schema = "rsa")]
-public partial class XlTable
+[PrimaryKey("VfileId", "TableId")]
+[Table("MTables", Schema = "mpm")]
+public partial class MTable
 {
     [Key]
-    [Column("ID")]
-    public int Id { get; set; }
+    [Column("VFileID")]
+    public int VfileId { get; set; }
 
-    [Column("SheetID")]
-    public int SheetId { get; set; }
+    [Key]
+    [Column("TableID")]
+    public int TableId { get; set; }
 
     [StringLength(512)]
     public string Name { get; set; } = null!;
 
-    public int StartRowNum { get; set; }
+    public int NumRows { get; set; }
 
-    public int StartColNum { get; set; }
+    public int NumCols { get; set; }
 
-    public int EndRowNum { get; set; }
+    [Column("RangeID")]
+    public int? RangeId { get; set; }
 
-    public int EndColNum { get; set; }
+    [Column("SeriesID")]
+    public int? SeriesId { get; set; }
+
+    [Column("SheetID")]
+    public int? SheetId { get; set; }
+
+    public int TableType { get; set; }
 
     [StringLength(1024)]
     public string Style { get; set; } = null!;

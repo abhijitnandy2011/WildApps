@@ -4,20 +4,26 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace RAppsAPI.Data;
+namespace EFCore_DBLibrary;
 
-[PrimaryKey("SheetId", "RowNum", "ColNum")]
-[Table("Cells", Schema = "rsa")]
+[PrimaryKey("VfileId", "TableId", "CellId")]
+[Table("Cells", Schema = "mpm")]
 public partial class Cell
 {
     [Key]
-    [Column("SheetID")]
-    public int SheetId { get; set; }
+    [Column("VFileID")]
+    public int VfileId { get; set; }
 
     [Key]
+    [Column("TableID")]
+    public int TableId { get; set; }
+
+    [Key]
+    [Column("CellID")]
+    public int CellId { get; set; }
+
     public int RowNum { get; set; }
 
-    [Key]
     public int ColNum { get; set; }
 
     [StringLength(512)]
@@ -31,6 +37,9 @@ public partial class Cell
 
     [StringLength(1024)]
     public string Style { get; set; } = null!;
+
+    [StringLength(1024)]
+    public string Comment { get; set; } = null!;
 
     public int CreatedBy { get; set; }
 

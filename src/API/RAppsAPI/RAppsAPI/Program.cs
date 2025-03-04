@@ -61,10 +61,11 @@ builder.Services.AddAuthentication(options =>
     });
 
 
-
+// Register interfaces for DI
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IFolderService, FolderService>();
+builder.Services.AddScoped<IMPMService, MPMService>();
 
 builder.Services.AddAuthorization();
 

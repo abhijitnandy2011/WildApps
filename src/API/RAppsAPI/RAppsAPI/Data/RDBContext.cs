@@ -1,4 +1,5 @@
 ﻿
+using EFCore_DBLibrary;
 using Microsoft.EntityFrameworkCore;
 
 
@@ -8,8 +9,6 @@ namespace RAppsAPI.Data
     {
         public virtual DbSet<AuthLog> AuthLogs { get; set; }
 
-        public virtual DbSet<Cell> Cells { get; set; }
-
         public virtual DbSet<FileType> FileTypes { get; set; }
 
         public virtual DbSet<FileTypeApp> FileTypeApps { get; set; }
@@ -17,8 +16,6 @@ namespace RAppsAPI.Data
         public virtual DbSet<FileUpload> FileUploads { get; set; }
 
         public virtual DbSet<RappsRoot> RappsRoots { get; set; }
-
-        public virtual DbSet<Sheet> Sheets { get; set; }
 
         public virtual DbSet<SysLog> SysLogs { get; set; }
 
@@ -38,18 +35,25 @@ namespace RAppsAPI.Data
 
         public virtual DbSet<VUser> VUsers { get; set; }
 
-        public virtual DbSet<Workbook> Workbooks { get; set; }
+        // Car Mgr
+        public virtual DbSet<Cell> Cells { get; set; }
 
-        public virtual DbSet<XlTable> XlTables { get; set; }
+        public virtual DbSet<MTable> Tables { get; set; }
+
+        public virtual DbSet<Product> Products { get; set; }
+
+        public virtual DbSet<ProductType> ProductTypes { get; set; }
+
+        public virtual DbSet<EFCore_DBLibrary.MRange> Ranges { get; set; }
+
+        public virtual DbSet<MSeries> Series { get; set; }
+
+        public virtual DbSet<Sheet> Sheets { get; set; }
+
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<Cell>(entity =>
-            {
-                entity.HasKey(e => new { e.SheetId, e.RowNum, e.ColNum }).HasName("PK_RSA_CellID");
-            });
-
+        {          
             modelBuilder.Entity<FileTypeApp>(entity =>
             {
                 entity.HasKey(e => e.Id).HasName("PK_FileTypeAppsID");
@@ -63,12 +67,7 @@ namespace RAppsAPI.Data
             modelBuilder.Entity<RappsRoot>(entity =>
             {
                 entity.Property(e => e.Id).ValueGeneratedNever();
-            });
-
-            modelBuilder.Entity<Sheet>(entity =>
-            {
-                entity.HasKey(e => e.Id).HasName("PK_RSA_SheetID");
-            });
+            });            
 
             modelBuilder.Entity<SystemFolderFile>(entity =>
             {
@@ -95,16 +94,47 @@ namespace RAppsAPI.Data
                 entity.Property(e => e.Id).ValueGeneratedNever();
             });
 
-            modelBuilder.Entity<Workbook>(entity =>
+            // MPM
+            modelBuilder.Entity<Sheet>(entity =>
             {
-                entity.HasKey(e => e.Id).HasName("PK_RSA_WorkbooksID");
+                entity.HasKey(e => new { e.VfileId, e.SheetId }).HasName("PK_MPM_SheetsID");
             });
 
-            modelBuilder.Entity<XlTable>(entity =>
+            modelBuilder.Entity<Product>(entity =>
             {
-                entity.HasKey(e => e.Id).HasName("PK_RSA_XlTableID");
+                entity.HasKey(e => new { e.VfileId, e.ProductId }).HasName("PK_MPM_ProductsID");
+                entity.HasMany(e => e.ProductTypes);
             });
-            
+
+            modelBuilder.Entity<ProductType>(entity =>
+            {
+                entity.HasKey(e => new { e.VfileId, e.ProductTypeId }).HasName("PK_MPM_ProductTypesID");
+                entity.HasOne(e => e.Product);
+                entity.HasMany(e => e.MRanges);
+
+            });
+
+            modelBuilder.Entity<MRange>(entity =>
+            {
+                entity.HasKey(e => new { e.VfileId, e.RangeId }).HasName("PK_MPM_RangesID");
+                entity.HasOne(e => e.ProductType);
+            });
+
+            modelBuilder.Entity<MSeries>(entity =>
+            {
+                entity.HasKey(e => new { e.VfileId, e.SeriesId }).HasName("PK_MPM_SeriesID");
+            });
+
+            modelBuilder.Entity<MTable>(entity =>
+            {
+                entity.HasKey(e => new { e.VfileId, e.TableId }).HasName("PK_MPM_MTablesID");
+            });
+
+            modelBuilder.Entity<Cell>(entity =>
+            {
+                entity.HasKey(e => new { e.VfileId, e.TableId, e.RowNum, e.ColNum }).HasName("PK_MPM_CellsID");
+            });
+
         }
 
 

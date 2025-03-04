@@ -6,25 +6,40 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EFCore_DBLibrary;
 
-[PrimaryKey("VfileId", "SheetId")]
-[Table("Sheets", Schema = "mpm")]
-public partial class Sheet
+[PrimaryKey("VfileId", "SeriesId")]
+[Table("MSeries", Schema = "mpm")]
+public partial class MSeries
 {
     [Key]
     [Column("VFileID")]
     public int VfileId { get; set; }
 
     [Key]
-    [Column("SheetID")]
-    public int SheetId { get; set; }
+    [Column("SeriesID")]
+    public int SeriesId { get; set; }
 
     [StringLength(128)]
     public string Name { get; set; } = null!;
 
-    public short SheetNum { get; set; }
+    [Column("RangeID")]
+    public int RangeId { get; set; }
 
-    [StringLength(2048)]
-    public string Style { get; set; } = null!;
+    [Column("SheetID")]
+    public int SheetId { get; set; }
+
+    [Column("HeaderTableID")]
+    public int HeaderTableId { get; set; }
+
+    [Column("DetailTableID")]
+    public int DetailTableId { get; set; }
+
+    public short SeriesNum { get; set; }
+
+    [Column("InfoTable1ID")]
+    public int? InfoTable1Id { get; set; }
+
+    [Column("InfoTable2ID")]
+    public int? InfoTable2Id { get; set; }
 
     public int CreatedBy { get; set; }
 

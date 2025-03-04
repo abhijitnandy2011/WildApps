@@ -3,28 +3,38 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
+using RAppsAPI.Data;
 
 namespace EFCore_DBLibrary;
 
-[PrimaryKey("VfileId", "SheetId")]
-[Table("Sheets", Schema = "mpm")]
-public partial class Sheet
+[PrimaryKey("VfileId", "RangeId")]
+[Table("MRanges", Schema = "mpm")]
+public partial class MRange
 {
     [Key]
     [Column("VFileID")]
     public int VfileId { get; set; }
 
     [Key]
-    [Column("SheetID")]
-    public int SheetId { get; set; }
+    [Column("RangeID")]
+    public int RangeId { get; set; }
 
     [StringLength(128)]
     public string Name { get; set; } = null!;
 
-    public short SheetNum { get; set; }
+    [Column("SheetID")]
+    public int SheetId { get; set; }
 
-    [StringLength(2048)]
-    public string Style { get; set; } = null!;
+    [Column("ProductID")]
+    public int ProductId { get; set; }
+
+    [Column("ProductTypeID")]
+    public int ProductTypeId { get; set; }
+
+    [Column("HeaderTableID")]
+    public int HeaderTableId { get; set; }
+
+    public short RangeNum { get; set; }
 
     public int CreatedBy { get; set; }
 
@@ -38,4 +48,11 @@ public partial class Sheet
 
     [Column("RStatus")]
     public byte Rstatus { get; set; }
+
+    [ForeignKey(nameof(VfileId))]
+    public virtual VFile File { get; set; }
+    
+    [ForeignKey("VfileId, ProductTypeId")]
+    public virtual ProductType ProductType { get; set; } 
+    
 }

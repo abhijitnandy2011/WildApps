@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Level Mega Menu</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="menu-button-container">
+                <button class="menu-button">
+                    <i class="fas fa-bars"></i>
+                    Menu
+                </button>
+                <div class="mega-menu">
+                    <div class="mega-menu-content">
+                        <!-- Level 1 -->
+                        <div class="mega-menu-column level-1">
+                            <h3>Categories</h3>
+                            <ul>
+                                <li>
+                                    <a href="#" class="level-1-item" data-category="electronics">Electronics <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-1-item" data-category="fashion">Fashion <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-1-item" data-category="home">Home & Living <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Level 2 Electronics -->
+                        <div class="mega-menu-column level-2" data-parent="electronics">
+                            <h3>Electronics</h3>
+                            <ul>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="phones">Phones & Tablets <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="computers">Computers <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="accessories">Accessories <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Level 2 Fashion -->
+                        <div class="mega-menu-column level-2" data-parent="fashion">
+                            <h3>Fashion</h3>
+                            <ul>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="mens">Men's Wear <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="womens">Women's Wear <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="kids">Kids' Wear <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Level 2 Home -->
+                        <div class="mega-menu-column level-2" data-parent="home">
+                            <h3>Home & Living</h3>
+                            <ul>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="furniture">Furniture <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="decor">Decor <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                                <li>
+                                    <a href="#" class="level-2-item" data-subcategory="kitchen">Kitchen <i class="fas fa-chevron-right"></i></a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Level 3 Electronics - Phones -->
+                        <div class="mega-menu-column level-3" data-parent="phones">
+                            <h3>Phones & Tablets</h3>
+                            <ul>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Smartphone">Smartphones</a></li>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Tablet">Tablets</a></li>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Phone+Case">Phone Cases</a></li>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Screen+Protector">Screen Protectors</a></li>
+                            </ul>
+                        </div>
+
+                        <!-- Level 3 Electronics - Computers -->
+                        <div class="mega-menu-column level-3" data-parent="computers">
+                            <h3>Computers</h3>
+                            <ul>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Laptop">Laptops</a></li>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Desktop">Desktops</a></li>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Monitor">Monitors</a></li>
+                                <li><a href="#" data-image="https://via.placeholder.com/200x200?text=Components">Components</a></li>
+                            </ul>
+                        </div>
+
+                        <!-- Image Preview Container -->
+                        <div class="image-preview">
+                            <img src="" alt="Preview" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="logo">
+                <a href="#">Your Logo</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <h1>Welcome to Our Website</h1>
+        <p>Click the menu button to see the multi-level mega menu in action!</p>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html> 
