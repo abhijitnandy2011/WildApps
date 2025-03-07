@@ -1,9 +1,5 @@
-﻿using EFCore_DBLibrary;
-using Microsoft.EntityFrameworkCore;
-using RAppsAPI.Data;
-using RAppsAPI.Models;
+﻿using RAppsAPI.Data;
 using RAppsAPI.Models.MPM;
-using System;
 using static RAppsAPI.Data.DBConstants;
 
 namespace RAppsAPI.Services
@@ -224,27 +220,30 @@ namespace RAppsAPI.Services
                                Rows = new()
                                {
                                    new(){  // Row 1
+                                       RN = 1,     
                                        Cells = new()
                                        {
-                                           new(){Value="Table Name", VType="", Style="" },
-                                           new(){Value="RangeSeriesDetailTable;XUV700", VType="", Style="" },
-                                           new(){Value="", VType="", Style="" }
+                                           new(){CN=1, Value="Table Name" },
+                                           new(){CN=2, Value="RangeSeriesDetailTable;XUV700" },
+                                           new(){CN=3, Value="" }
                                        }
                                    },
                                    new(){  // Row 2
+                                       RN = 2,
                                        Cells = new()
                                        {
-                                           new(){Value="To Be Processed", VType="", Style="" },
-                                           new(){Value="Yes", VType="", Style="" },
-                                           new(){Value="", VType="", Style="" }
+                                           new(){CN=1, Value="To Be Processed"},
+                                           new(){CN=2, Value="Yes"},
+                                           new(){CN=3, Value=""}
                                        }
                                    },
                                    new(){  // Row 3
+                                       RN = 3,
                                        Cells = new()
                                        {
-                                           new(){Value="XUV700", VType="", Style="" },
-                                           new(){Value="Type", VType="", Style="" },
-                                           new(){Value="MX", VType="", Style="" }
+                                           new(){CN=1, Value="XUV700"},
+                                           new(){CN=2, Value="Type"},
+                                           new(){CN=3, Value="MX"}
                                        }
                                    }
                                }

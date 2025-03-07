@@ -56,13 +56,16 @@
 
     public class MPMSeriesDetailRow
     {
+        // RowNum is needed so that entire rows can be skipped if empty
+        public int RN { get; set; } 
         public List<MPMSeriesDetailCell> Cells { get; set; }
     }
 
     public class MPMSeriesDetailCell
     {
-        public string Value { get; set; }
-        public string VType { get; set; }
-        public string Style { get; set; }
+        public int CN { get; set; }
+        public string? Value { get; set; }
+        public string? VType { get; set; }
+        public string? Style { get; set; }
     }
 }
