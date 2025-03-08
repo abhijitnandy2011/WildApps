@@ -32,127 +32,63 @@ namespace RAppsAPI.Services
                                 RangeName = r.Name
                             };
 
-
                 var rs = new[]
                 {
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
-                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="XUV700"},
+                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="SUV700"},
+                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="SUV800"},
+                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="SUV900"},
+                    new { ProductName = "Big Car", ProductTypeName="SUV", RangeName="SUV1000"},
+                    new { ProductName = "Big Car", ProductTypeName="XUV", RangeName="XUV500"},
+                    new { ProductName = "Big Car", ProductTypeName="XUV", RangeName="XUVA00"},
+                    new { ProductName = "Big Car", ProductTypeName="XUV", RangeName="XUVB00"},
+                    new { ProductName = "Little Car", ProductTypeName="XUV", RangeName="XUV700"},
+                    new { ProductName = "Little Car", ProductTypeName="XUV", RangeName="XUV800"},
+                    new { ProductName = "Little Car", ProductTypeName="XUV", RangeName="XUV900"},
+                    new { ProductName = "Little Car", ProductTypeName="XUV", RangeName="XUV1000"},
+                    new { ProductName = "Little Car", ProductTypeName="SUV", RangeName="XUVX00"},
+                    new { ProductName = "Little Car", ProductTypeName="SUV", RangeName="XUVY00"},
+                    new { ProductName = "Little Car", ProductTypeName="SUV", RangeName="XUVZ00"},
+                    new { ProductName = "Little Car", ProductTypeName="SUV", RangeName="XUVU00"},
                 };
 
                 // Parse the result set into a hierarchical structure
-                // Get the mock APIs out tomorrow
-
-
-                var products = new List<MPMProductInfo>
+                var products = new List<MPMProductInfo>();
+                int pid = 0, ptid=0, rid = 0;
+                MPMProductInfo currProd = null;
+                MPMProductTypeInfo currProdType = null;
+                MPMRangeInfo currRange = null;
+                for (int i = 0; i < rs.Length; i++)
                 {
-                    // Big Car
-                    new MPMProductInfo
+                    var p = rs[i].ProductName;
+                    var pt = rs[i].ProductTypeName;
+                    var r = rs[i].RangeName;
+                    if(currProd == null || currProd.ProductName != p)
                     {
-                        ProductId = 1,
-                        ProductName = "Big Car",
-                        ProductTypeInfo = new List<MPMProductTypeInfo>
-                        {
-                            new MPMProductTypeInfo
-                            {
-                                ProductTypeId = 1,
-                                ProductTypeName = "SUV",
-                                RangeInfo = new List<MPMRangeInfo>
-                                {
-                                    new MPMRangeInfo
-                                    {
-                                        RangeId = 1,
-                                        RangeName = "Mahindra",
-                                        imageUrl = ""
-                                    }
-                                }
-                            }
-                        }
-                    },
-
-                    new MPMProductInfo
-                    {
-                        ProductId = 1,
-                        ProductName = "Big Car",
-                        ProductTypeInfo = new List<MPMProductTypeInfo>
-                        {
-                            new MPMProductTypeInfo
-                            {
-                                ProductTypeId = 1,
-                                ProductTypeName = "SUV",
-                                RangeInfo = new List<MPMRangeInfo>
-                                {
-                                    new MPMRangeInfo
-                                    {
-                                        RangeId = 2,
-                                        RangeName = "Thar",
-                                        imageUrl = ""
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    
-                    // Little Car
-                    new MPMProductInfo
-                    {
-                        ProductId = 2,
-                        ProductName = "Little Car",
-                        ProductTypeInfo = new List<MPMProductTypeInfo>
-                        {
-                            new MPMProductTypeInfo
-                            {
-                                ProductTypeId = 2,
-                                ProductTypeName = "Hatchback",
-                                RangeInfo = new List<MPMRangeInfo>
-                                {
-                                    new MPMRangeInfo
-                                    {
-                                        RangeId = 3,
-                                        RangeName = "Maruti",
-                                        imageUrl = ""
-                                    }
-                                }
-                            }
-                        }
-                    },
-
-                    new MPMProductInfo
-                    {
-                        ProductId = 2,
-                        ProductName = "Little Car",
-                        ProductTypeInfo = new List<MPMProductTypeInfo>
-                        {
-                            new MPMProductTypeInfo
-                            {
-                                ProductTypeId = 2,
-                                ProductTypeName = "Hatchback",
-                                RangeInfo = new List<MPMRangeInfo>
-                                {
-                                    new MPMRangeInfo
-                                    {
-                                        RangeId = 4,
-                                        RangeName = "Ambassador",
-                                        imageUrl = ""
-                                    }
-                                }
-                            }
-                        }
+                        currProd = new MPMProductInfo();
+                        products.Add(currProd);
+                        currProd.ProductId = ++pid;
+                        currProd.ProductName = p;
+                        currProd.ProductTypeInfo = new List<MPMProductTypeInfo>();
+                        currProdType = null;
                     }
-                };
+                    if (currProdType == null || currProdType.ProductTypeName != pt)
+                    {
+                        currProdType = new MPMProductTypeInfo();
+                        currProd.ProductTypeInfo.Add(currProdType);
+                        currProdType.ProductTypeId = ++ptid;
+                        currProdType.ProductTypeName = pt;
+                        currProdType.RangeInfo = new List<MPMRangeInfo>();
+                        currRange = null;
+                    }
+                    if (currRange == null || currRange.RangeName != r)
+                    {
+                        currRange = new MPMRangeInfo();
+                        currProdType.RangeInfo.Add(currRange);
+                        currRange.RangeId = ++rid;
+                        currRange.RangeName = r;
+                        currRange.imageUrl = "";
+                    }
+                }             
 
                 // Send Product response
                 return new MPMGetProductInfoResponseDTO
