@@ -1,6 +1,10 @@
-@RAppsAPI_HostAddress = http://localhost:5230
+@RAppsAPI_HostAddress = https://localhost:7131
 
 GET {{RAppsAPI_HostAddress}}/weatherforecast/
 Accept: application/json
+
+###
+
+GET {{RAppsAPI_HostAddress}}/api/mpm/mfile/3/range/1
 
 ###

@@ -19,7 +19,8 @@
     public class MPMRangeInfoField
     {
         public string Name { get; set; } = string.Empty;
-        public List<string> Values { get; set; }
+        public List<MPMRichCell> Cells { get; set; }  // Each value is actually a cell with formula,
+                                                  // formatting, style etc
     }
 
     public class MPMSeriesInformation
@@ -44,7 +45,7 @@
     public class MPMSeriesHeaderField
     {
         public string Name { get; set; }
-        public List<string> Values { get; set; }
+        public List<MPMRichCell> Cells { get; set; } // These are cells, have to each be richer
     }
 
     public class MPMSeriesDetail
@@ -58,14 +59,17 @@
     {
         // RowNum is needed so that entire rows can be skipped if empty
         public int RN { get; set; } 
-        public List<MPMSeriesDetailCell> Cells { get; set; }
+        public List<MPMRichCell> Cells { get; set; }
     }
 
-    public class MPMSeriesDetailCell
+    public class MPMRichCell
     {
         public int CN { get; set; }
-        public string? Value { get; set; }
+        public string? Value { get; set; }  // empty cells can have color, formatting etc
         public string? VType { get; set; }
+        public string? Formula { get; set; }
+        public string? Format { get; set; }
         public string? Style { get; set; }
+        public string? Comment { get; set; }
     }
 }

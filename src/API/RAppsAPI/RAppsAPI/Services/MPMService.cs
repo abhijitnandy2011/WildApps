@@ -1,5 +1,9 @@
-﻿using RAppsAPI.Data;
+﻿using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.SqlServer.Server;
+using RAppsAPI.Data;
 using RAppsAPI.Models.MPM;
+using System.ComponentModel;
 using static RAppsAPI.Data.DBConstants;
 
 namespace RAppsAPI.Services
@@ -122,16 +126,86 @@ namespace RAppsAPI.Services
         {
             try
             {
-                var ri = new MPMRangeInformation
+                int fromSeriesNum = fromSeries ?? 1;
+                int toSeriesNum = toSeries ?? Constants.MAX_SERIES_NUM_IN_RANGE;  // all series
+
+                //var ri = new MPMRangeInformation();
+                // Get series count
+                var rs1 = from c in context.Cells
+                    let seriesCount = context.Series.Count(s => s.VfileId == fileId && s.RangeId == rangeId && s.Rstatus == (byte)RStatus.Active)
+                    let selRange = context.Ranges.FirstOrDefault(r => r.VfileId == fileId && r.RangeId == rangeId && r.Rstatus == (byte)RStatus.Active)
+                    where c.VfileId == fileId && c.Rstatus == (byte)RStatus.Active && c.TableId == selRange.HeaderTableId
+                    select new MPMRangeInfoResult(
+                        seriesCount,
+                        c.CellId,
+                        c.RowNum,
+                        c.ColNum,
+                        c.Value,
+                        c.Formula,
+                        c.Format,
+                        c.Style,
+                        c.Comment
+                    );
+                var ri = new MPMRangeInformation();
+                if (rs1 != null && rs1.Count() > 0)
                 {
-                    RangeId = 1,
-                    NumSeriesActual = 4,
-                    Fields = new()
+                    if(rs1.ElementAt(0).SeriesCount < 0)
                     {
-                        new(){ Name = "Table Name",  Values = new() { "RangeHeaderTable;XUV700,XUV500" } },
-                        new(){ Name = "To Be Processed",  Values = new() { "Yes" } }
+                        throw new Exception("GetRangeInfo: SeriesCount < 0");
                     }
-                };
+                    ri.NumSeriesActual = rs1.ElementAt(0).SeriesCount;
+                    ri.Fields = new();  // this is a List of rows
+                    foreach (var res in rs1)  // for each row in resultset
+                    {
+                        // TODO: Test if rows are being added properly
+                        if (res.RowNum < 1)
+                        {
+                            throw new Exception("GetRangeInfo: res.RowNum < 1");
+                        }
+                        if (res.ColNum < 1)
+                        {
+                            throw new Exception("GetRangeInfo: res.ColNum < 1");
+                        }
+                        var numRowsToAdd = res.RowNum - ri.Fields.Count;
+                        for (int i=0; i< numRowsToAdd; ++i)
+                        {
+                            ri.Fields.Add(new() { Name = "", Cells = new() });
+                        }
+                        if (res.ColNum == 1)
+                        {
+                            // Set the field name for API POST calls later
+                            ri.Fields[res.RowNum - 1].Name = res.Value;
+                        }
+                        AddFieldCellsWithColNumCheck(ri, res);                     
+                    }
+                    ri.RangeId = rangeId;                    
+                }
+
+                // Get Series Header info
+                // TODO - SeriesNum of subsequent series must be updated when a series is added/removed
+                var rangeIdParam = new SqlParameter("rangeIdParam", rangeId);
+                var vFileIdParam = new SqlParameter("vFileIdParam", fileId);
+                var activeStatusParam = new SqlParameter("activeStatusParam", DBConstants.RStatus.Active);
+                var fromSeriesNumParam = new SqlParameter("fromSeriesNumParam", fromSeriesNum);
+                var toSeriesNumParam = new SqlParameter("toSeriesNumParam", toSeriesNum);
+                var listHeaderResults = await context.Database.SqlQuery<MPMSeriesHeaderInfoQueryResult>(
+                         @$"SELECT s.SeriesID, s.SeriesNum, c.RowNum, c.ColNum, c.Value, c.Formula, c.Format, c.Style, c.Comment
+                            FROM mpm.MSeries AS s
+                            JOIN mpm.Cells AS c ON c.VFileID=s.VFileID AND c.TableID=s.HeaderTableID AND c.RStatus={activeStatusParam}
+                            WHERE s.RangeID={rangeIdParam} AND s.VFileID={vFileIdParam} AND s.RStatus={activeStatusParam} AND
+                                    s.SeriesNum >= {fromSeriesNumParam} AND s.SeriesNum <= {toSeriesNumParam}
+                            ORDER BY s.SeriesNum, s.SeriesID")
+                        .ToListAsync();
+
+                // Get Series Detail info                
+                var listDetailResults = await context.Database.SqlQuery<MPMSeriesHeaderInfoQueryResult>(
+                         @$"SELECT s.SeriesID, s.SeriesNum, c.RowNum, c.ColNum, c.Value, c.Formula, c.Format, c.Style, c.Comment
+                            FROM mpm.MSeries AS s
+                            JOIN mpm.Cells AS c ON c.VFileID=s.VFileID AND c.TableID=s.DetailTableID AND c.RStatus={activeStatusParam}
+                            WHERE s.RangeID={rangeIdParam} AND s.VFileID={vFileIdParam} AND s.RStatus={activeStatusParam} AND
+                                    s.SeriesNum >= {fromSeriesNumParam} AND s.SeriesNum <= {toSeriesNumParam}
+                            ORDER BY s.SeriesNum, s.SeriesID")
+                        .ToListAsync();
 
                 var si = new MPMSeriesInformation
                 {
@@ -145,8 +219,8 @@ namespace RAppsAPI.Services
                            {
                               Fields = new()
                               {
-                                new(){ Name = "Table Name",  Values = new() { "RangeSeriesTable;XUV700" } },
-                                new(){ Name = "To Be Processed",  Values = new() { "Yes" } }
+                                new(){ Name = "Table Name",  Cells = new() { new() {CN=1, Value = "RangeSeriesTable;XUV700" } } },
+                                new(){ Name = "To Be Processed",  Cells = new() { new() {CN=1, Value = "Yes" } } }
                               }
                            },
                            SeriesDetail = new()
@@ -216,5 +290,27 @@ namespace RAppsAPI.Services
             }
         }
 
+        // Add cells in row, assumes the proper row is available at the proper position.
+        // Check if Cells has enough columns or add to it
+        // TODO: Test if columns are being added properly with correct CN value
+        private static void AddFieldCellsWithColNumCheck(MPMRangeInformation ri, MPMRangeInfoResult res)
+        {
+            var currRow = ri.Fields[res.RowNum-1];
+            var numColsToAdd = res.ColNum - currRow.Cells.Count;
+            var colNum = currRow.Cells.Count;
+            for (int i = 0; i < numColsToAdd; ++i)
+            {
+                currRow.Cells.Add(new() { CN = ++colNum });
+            }
+            var index = res.ColNum - 1;           
+            currRow.Cells[index].Value = res.Value;
+            currRow.Cells[index].VType = "";   // this is currently not loaded in db, format will have the type
+            currRow.Cells[index].Formula = res.Formula;
+            currRow.Cells[index].Format = res.Format;
+            currRow.Cells[index].Style = res.Style;
+            currRow.Cells[index].Comment = res.Comment;
+        }
     }
+
+    
 }
