@@ -3,7 +3,7 @@
     internal class MPMSeriesHeaderInfoQueryResult
     {
         public int SeriesID { get; set; }
-        public int SeriesNum { get; set; }
+        public short SeriesNum { get; set; }
         public int RowNum { get; set; }
         public int ColNum { get; set; }
         public string Value { get; set; } = string.Empty;

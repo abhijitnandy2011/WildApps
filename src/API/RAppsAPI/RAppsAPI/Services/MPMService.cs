@@ -1,9 +1,7 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.SqlServer.Server;
 using RAppsAPI.Data;
 using RAppsAPI.Models.MPM;
-using System.ComponentModel;
 using static RAppsAPI.Data.DBConstants;
 
 namespace RAppsAPI.Services
@@ -182,6 +180,7 @@ namespace RAppsAPI.Services
                 }
 
                 // Get Series Header info
+                var si = new MPMSeriesInformation();
                 // TODO - SeriesNum of subsequent series must be updated when a series is added/removed
                 var rangeIdParam = new SqlParameter("rangeIdParam", rangeId);
                 var vFileIdParam = new SqlParameter("vFileIdParam", fileId);
@@ -197,71 +196,30 @@ namespace RAppsAPI.Services
                             ORDER BY s.SeriesNum, s.SeriesID")
                         .ToListAsync();
 
-                // Get Series Detail info                
-                var listDetailResults = await context.Database.SqlQuery<MPMSeriesHeaderInfoQueryResult>(
-                         @$"SELECT s.SeriesID, s.SeriesNum, c.RowNum, c.ColNum, c.Value, c.Formula, c.Format, c.Style, c.Comment
-                            FROM mpm.MSeries AS s
-                            JOIN mpm.Cells AS c ON c.VFileID=s.VFileID AND c.TableID=s.DetailTableID AND c.RStatus={activeStatusParam}
-                            WHERE s.RangeID={rangeIdParam} AND s.VFileID={vFileIdParam} AND s.RStatus={activeStatusParam} AND
-                                    s.SeriesNum >= {fromSeriesNumParam} AND s.SeriesNum <= {toSeriesNumParam}
-                            ORDER BY s.SeriesNum, s.SeriesID")
-                        .ToListAsync();
-
-                var si = new MPMSeriesInformation
+                if (listHeaderResults != null && listHeaderResults.Count > 0)
                 {
-                    Series = new List<MPMSeriesInfoRow>
+                    // Get Series Detail info                
+                    var listDetailResults = await context.Database.SqlQuery<MPMSeriesHeaderInfoQueryResult>(
+                        @$"SELECT s.SeriesID, s.SeriesNum, c.RowNum, c.ColNum, c.Value, c.Formula, c.Format, c.Style, c.Comment
+                        FROM mpm.MSeries AS s
+                        JOIN mpm.Cells AS c ON c.VFileID=s.VFileID AND c.TableID=s.DetailTableID AND c.RStatus={activeStatusParam}
+                        WHERE s.RangeID={rangeIdParam} AND s.VFileID={vFileIdParam} AND s.RStatus={activeStatusParam} AND
+                                s.SeriesNum >= {fromSeriesNumParam} AND s.SeriesNum <= {toSeriesNumParam}
+                        ORDER BY s.SeriesNum, s.SeriesID")
+                        .ToListAsync();
+                    // Get series detail tables dims
+                    var listDetailDimsResults = await context.Database.SqlQuery<MPMSeriesDetailDimsQueryResult>(
+                        @$"SELECT SeriesID, NumRows, NumCols
+                        FROM mpm.MTables
+                        WHERE VFileID={vFileIdParam} AND RangeID={rangeIdParam} AND TableType>=100 AND RStatus={activeStatusParam}")
+                        .ToListAsync();
+                    if (listDetailResults != null && listDetailDimsResults != null && 
+                        listDetailResults.Count > 0 && listDetailDimsResults.Count > 0)
                     {
-                        new()
-                        {
-                           SeriesId = 1,
-                           SeriesNum = 1,
-                           SeriesHeader = new()
-                           {
-                              Fields = new()
-                              {
-                                new(){ Name = "Table Name",  Cells = new() { new() {CN=1, Value = "RangeSeriesTable;XUV700" } } },
-                                new(){ Name = "To Be Processed",  Cells = new() { new() {CN=1, Value = "Yes" } } }
-                              }
-                           },
-                           SeriesDetail = new()
-                           {
-                               NumRows = 3,   // front end should check the dimensions before accepting
-                               NumCols = 3,
-                               Rows = new()
-                               {
-                                   new(){  // Row 1
-                                       RN = 1,     
-                                       Cells = new()
-                                       {
-                                           new(){CN=1, Value="Table Name" },
-                                           new(){CN=2, Value="RangeSeriesDetailTable;XUV700" },
-                                           new(){CN=3, Value="" }
-                                       }
-                                   },
-                                   new(){  // Row 2
-                                       RN = 2,
-                                       Cells = new()
-                                       {
-                                           new(){CN=1, Value="To Be Processed"},
-                                           new(){CN=2, Value="Yes"},
-                                           new(){CN=3, Value=""}
-                                       }
-                                   },
-                                   new(){  // Row 3
-                                       RN = 3,
-                                       Cells = new()
-                                       {
-                                           new(){CN=1, Value="XUV700"},
-                                           new(){CN=2, Value="Type"},
-                                           new(){CN=3, Value="MX"}
-                                       }
-                                   }
-                               }
-                           }
-                        }                        
+                        si.Series = new();                        
+                        AddSeriesInfo(si, listHeaderResults, listDetailResults, listDetailDimsResults, fromSeriesNum, toSeriesNum);  
                     }
-                };
-
+                }
                 // Parse the result set into a hierarchical structure
                 // Get the mock APIs out tomorrow
                 return new MPMGetRangeInfoResponseDTO()
@@ -289,6 +247,144 @@ namespace RAppsAPI.Services
                 };
             }
         }
+
+
+
+        private static void AddSeriesInfo(
+            MPMSeriesInformation si,
+            List<MPMSeriesHeaderInfoQueryResult> listHeaderResults,
+            List<MPMSeriesHeaderInfoQueryResult> listDetailResults,
+            List<MPMSeriesDetailDimsQueryResult> listDetailDimsResults,
+            int fromSeriesNum, int toSeriesNum)
+        {
+            // Fill series header info for all series
+            foreach (var res in listHeaderResults)
+            {
+                var numSeriesRows = res.SeriesNum - si.Series.Count - fromSeriesNum + 1;
+                for (int i = 0; i < numSeriesRows; i++)
+                {
+                    si.Series.Add(new());
+                }
+                // Figure out the series to update from this res
+                var index = res.SeriesNum - fromSeriesNum;
+                si.Series[index].SeriesId = res.SeriesID;
+                si.Series[index].SeriesNum = res.SeriesNum;
+                if (si.Series[index].SeriesHeader == null)
+                {
+                    si.Series[index].SeriesHeader = new();
+                    si.Series[index].SeriesHeader.Fields = new();
+                }
+                // Fill the series header
+                var sh = si.Series[index].SeriesHeader;
+                var numFieldsToAdd = res.RowNum - sh.Fields.Count;
+                for (int i = 0; i < numFieldsToAdd; ++i)
+                {
+                    sh.Fields.Add(new() { Name = "", Cells = new() });
+                }
+                if (res.ColNum == 1)
+                {
+                    // Set the field name for API POST calls later
+                    sh.Fields[res.RowNum - 1].Name = res.Value;
+                }
+                // Fill the field cells/values
+                var currRow = sh.Fields[res.RowNum - 1];
+                AddSeriesCells(res, currRow.Cells, false);  // no need to drop empty cells for series header
+            }
+            // Fill series detail info for all series
+            var dictSeriesIdVsDims = new Dictionary<int, (int rows, int cols)>();
+            foreach (var res in listDetailResults)
+            {
+                // Figure out the series to update from this res
+                var index = res.SeriesNum - fromSeriesNum;
+                if (index >= si.Series.Count)
+                {
+                    throw new Exception($"AddSeriesInfo: {index} >= si.Series.Count while parsing listDetailResults");
+                }
+                if (si.Series[index].SeriesDetail == null)
+                {
+                    si.Series[index].SeriesDetail = new();
+                    si.Series[index].SeriesDetail.NumRows = -1;  // unknown at this point
+                    si.Series[index].SeriesDetail.NumCols = -1;
+                    si.Series[index].SeriesDetail.Rows = new();  // equiv of Fields in series header
+                }
+                var sd = si.Series[index].SeriesDetail;
+                // Fill the series detail for this iteration
+                var numRowsToAdd = res.RowNum - sd.Rows.Count;
+                // Expand Rows to accomodate cells of row RowNum
+                var rowNum = sd.Rows.Count;
+                for (int i = 0; i < numRowsToAdd; ++i)
+                {
+                    sd.Rows.Add(new() { RN = ++rowNum, Cells = new() });
+                }
+                // Fill the series detail cells
+                var currRow = sd.Rows[res.RowNum - 1];
+                AddSeriesCells(res, currRow.Cells, true);  // drop empty cells for series detail 
+                // Update num rows & cols if either is greater
+                if (!dictSeriesIdVsDims.ContainsKey(res.SeriesID)) {
+                    dictSeriesIdVsDims[res.SeriesID] = (0, 0);
+                }
+                if (res.RowNum > dictSeriesIdVsDims[res.SeriesID].rows)
+                {
+                    dictSeriesIdVsDims[res.SeriesID] = (res.RowNum, dictSeriesIdVsDims[res.SeriesID].cols);
+                }
+                if (res.ColNum > dictSeriesIdVsDims[res.SeriesID].cols)
+                {
+                    dictSeriesIdVsDims[res.SeriesID] = (dictSeriesIdVsDims[res.SeriesID].rows, res.ColNum);
+                }
+            }
+            // Create the series detail tables dimensions map from DB data
+            var dictSeriesIdVsDetailDims = new Dictionary<int, (int numRows, int numCols)>();
+            foreach (var table in listDetailDimsResults)
+            {
+                dictSeriesIdVsDetailDims[table.SeriesID] = (table.NumRows, table.NumCols);
+            }
+            // Update NumRows & NumCols from dict after checking against DB values
+            foreach (var ser in si.Series)
+            {
+                // Confirm the rows & cols of each series detail table calculated in this function
+                // matches whats in the DB
+                var currSeries = dictSeriesIdVsDims[ser.SeriesId];
+                if (currSeries.rows != dictSeriesIdVsDetailDims[ser.SeriesId].numRows)
+                {
+                    throw new Exception($"AddSeriesInfo: NumRows calc in function({currSeries.rows}) does not match DB({dictSeriesIdVsDetailDims[ser.SeriesId].numRows})");
+                }
+                if (currSeries.cols != dictSeriesIdVsDetailDims[ser.SeriesId].numCols)
+                {
+                    throw new Exception($"AddSeriesInfo: NumCols calc in function({currSeries.cols}) does not match DB({dictSeriesIdVsDetailDims[ser.SeriesId].numCols})");
+                }
+                // Checks complete & successful
+                ser.SeriesDetail.NumRows = currSeries.rows;
+                ser.SeriesDetail.NumCols = currSeries.cols;                
+            }
+
+        }
+
+
+        // Add series cells for series header or detail, as the List of Cells passed may belong to
+        private static void AddSeriesCells(MPMSeriesHeaderInfoQueryResult res, List<MPMRichCell> Cells, bool dropEmptyCells)
+        {
+            if (dropEmptyCells &&
+                res.Value.Length == 0 &&
+                res.Formula.Length == 0 &&
+                res.Format.Length == 0 &&
+                res.Style.Length == 0 &&
+                res.Comment.Length == 0)
+            {
+                // Ignore this cell
+                return;
+            }           
+            Cells.Add(new() { 
+                CN = res.ColNum,            
+                Value = res.Value,
+                VType = "",   // this is currently not loaded in db, format will have the type
+                Formula = res.Formula,
+                Format = res.Format,
+                Style = res.Style,
+                Comment = res.Comment
+            });
+        }
+
+
 
         // Add cells in row, assumes the proper row is available at the proper position.
         // Check if Cells has enough columns or add to it
