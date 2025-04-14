@@ -1,0 +1,14 @@
+<div>
+  <label for="username">User Name: </label>
+  <input type="text" name="username" id="username" [(ngModel)]="username" />
+  <br />
+  <br />
+  <label for="password">Password: </label>
+  <input type="text" name="password" id="password" [(ngModel)]="password" />
+  <br />
+  <br />
+  <button type="submit" (click)="onSubmitClicked()">Submit</button>
+  <br />
+  <br />
+  <div style="white-space: pre-wrap">{{ response }}</div>
+</div>
