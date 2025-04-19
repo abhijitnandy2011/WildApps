@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -66,6 +65,10 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<IMPMService, MPMService>();
+builder.Services.AddSingleton<IMPMBackgroundRequestQueue, MPMBackgroundRequestQueue>();
+builder.Services.AddSingleton<IMPMSpreadsheetService, MPMSpreadsheetService>();
+builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
+builder.Services.AddLogging();
 
 builder.Services.AddAuthorization();
 

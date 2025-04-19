@@ -1,21 +1,47 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using RAppsAPI.Data;
 using RAppsAPI.Models;
+using RAppsAPI.Models.MPM;
 using RAppsAPI.Services;
 
 namespace RAppsAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class MPMController(IMPMService mpmService) : Controller
-    {        
+    public class MPMController : Controller
+    {
+        private readonly IMPMService _mpmService;
+        private readonly IMPMBackgroundRequestQueue _reqQueue;
+
+        public MPMController(IMPMService mpmService,
+            IMPMBackgroundRequestQueue queue)
+        {
+            _reqQueue = queue;
+            _mpmService = mpmService;
+        }
+
+        [HttpPost("editFile")]
+        public IActionResult editFile([FromBody] MPMEditRequestDTO editDTO)
+        {
+            _reqQueue.QueueBackgroundRequest(editDTO);
+            return Ok("File edit request noted");
+        }
+
+        [HttpPost("readFile")]
+        public IActionResult readFile([FromBody] MPMReadRequestDTO readDTO)
+        {
+            //_reqQueue.QueueBackgroundRequest(editDTO);
+            return Ok("File read request noted");
+        }
+
+
         // Returns all product, product types and ranges as nested json
         [HttpGet("mfile/{fileId}")]
         public async Task<IActionResult> GetProductInfo(int fileId)
         {
             try
             {
-                var productsList = await mpmService.GetProductInfo(fileId);
+                var productsList = await _mpmService.GetProductInfo(fileId);
                 return Json(productsList);                
             }
             catch (Exception ex)
@@ -33,7 +59,7 @@ namespace RAppsAPI.Controllers
         {
             try
             {
-                var rangeInfo = await mpmService.GetRangeInfo(fileId, rangeId, fromSeries, toSeries);
+                var rangeInfo = await _mpmService.GetRangeInfo(fileId, rangeId, fromSeries, toSeries);
                 return Json(rangeInfo);
             }
             catch (Exception ex)
