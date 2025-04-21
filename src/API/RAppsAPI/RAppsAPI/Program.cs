@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using OfficeOpenXml;
 using RAppsAPI.Data;
 using RAppsAPI.Services;
 using Swashbuckle.AspNetCore.Filters;
 using System.Text;
+
+ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -67,6 +70,7 @@ builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<IMPMService, MPMService>();
 builder.Services.AddSingleton<IMPMBackgroundRequestQueue, MPMBackgroundRequestQueue>();
 builder.Services.AddSingleton<IMPMSpreadsheetService, MPMSpreadsheetService>();
+builder.Services.AddSingleton<IMPMBuildCacheFromDBService, MPMBuildCacheFromDBService>();
 builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
 builder.Services.AddLogging();
 

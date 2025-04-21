@@ -8,14 +8,17 @@ namespace RAppsAPI.Services
         private readonly IMPMBackgroundRequestQueue _reqQueue;
         private readonly ILogger _logger;
         private readonly IMPMSpreadsheetService _spreadsheetService;
+        private readonly IServiceProvider _serviceProvider;
 
         public MPMQueuedReqProcessorBackgroundService(IMPMBackgroundRequestQueue reqQueue,
             ILoggerFactory loggerFactory,
-            IMPMSpreadsheetService spreadsheetService)
+            IMPMSpreadsheetService spreadsheetService,
+            IServiceProvider serviceProvider)
         {
             _reqQueue = reqQueue;
             _logger = loggerFactory.CreateLogger<MPMQueuedReqProcessorBackgroundService>();
             _spreadsheetService = spreadsheetService;
+            _serviceProvider = serviceProvider;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -34,7 +37,7 @@ namespace RAppsAPI.Services
                     {
                         Console.WriteLine("Starting on request:{0}...", req.ReqId);                       
                         //_logger.LogInformation("Job completed successfully.");
-                        await _spreadsheetService.processRequest(req);
+                        await _spreadsheetService.ProcessRequest(req, _serviceProvider);
                         Console.WriteLine("Finished request:{0}", req.ReqId);
                     }
                     catch (Exception ex)

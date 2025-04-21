@@ -27,10 +27,13 @@ namespace RAppsAPI.Controllers
             return Ok("File edit request noted");
         }
 
+
+        // Return series detail data
+        // TODO: Maybe merge this with GetRangeInfo() to get all data in demand 
         [HttpPost("readFile")]
-        public IActionResult readFile([FromBody] MPMReadRequestDTO readDTO)
+        public async Task<IActionResult> readFile([FromBody] MPMReadRequestDTO readDTO)
         {
-            //_reqQueue.QueueBackgroundRequest(editDTO);
+            await _mpmService.GetSeriesDetailInfo(readDTO);
             return Ok("File read request noted");
         }
 

@@ -7,6 +7,6 @@ namespace RAppsAPI.Services
     {
         Task<MPMGetProductInfoResponseDTO> GetProductInfo(int fileId);
         Task<MPMGetRangeInfoResponseDTO> GetRangeInfo(int fileId, int rangeId, int? fromSeries, int? toSeries);
-
+        public Task<string> GetSeriesDetailInfo(MPMReadRequestDTO readDTO);
     }
 }

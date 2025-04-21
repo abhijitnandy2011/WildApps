@@ -6,7 +6,9 @@ using static RAppsAPI.Data.DBConstants;
 
 namespace RAppsAPI.Services
 {
-    public class MPMService(RDBContext context) : IMPMService
+    public class MPMService(RDBContext context, 
+        IMPMBuildCacheFromDBService _buildCacheFromDBService,
+        IServiceProvider _serviceProvider) : IMPMService
     {
         public async Task<MPMGetProductInfoResponseDTO> GetProductInfo(int fileId)
         {
@@ -406,6 +408,21 @@ namespace RAppsAPI.Services
             currRow.Cells[index].Style = res.Style;
             currRow.Cells[index].Comment = res.Comment;
         }
+
+
+        // Get series detail data
+        public async Task<string> GetSeriesDetailInfo(MPMReadRequestDTO readDTO)
+        {
+            // Return imm if no lock on cache
+            var success = await _buildCacheFromDBService.Build(readDTO, 0, _serviceProvider);
+            if (success == -1)
+            {
+                Console.WriteLine("GetSeriesDetailInfo: Request {0} Cache lock failed", readDTO.ReqId);
+            }
+            return "";
+        }
+
+
     }
 
     

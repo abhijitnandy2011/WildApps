@@ -5,7 +5,7 @@ namespace RAppsAPI.Services
 {
     public interface IMPMSpreadsheetService
     {
-        public Task processRequest(MPMEditRequestDTO editReq);
+        public Task ProcessRequest(MPMEditRequestDTO editReq, IServiceProvider serviceProvider);
 
     }
 }
