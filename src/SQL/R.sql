@@ -94,6 +94,8 @@ select * from mpm.MSeries
 select * from mpm.MTables
 select top 10 * from mpm.Cells
 
+select * from mpm.Cells
+
 -- Check there is no duplicate table name
 select Name, count(*) from mpm.MTables group by Name order by count(*) desc
 
@@ -110,6 +112,15 @@ LEFT JOIN mpm.MRanges r ON r.ProductTypeID = pt.ProductTypeID
 LEFT JOIN mpm.MSeries s ON s.RangeID = r.RangeID
 
 SELECT * FROM mpm.MTables WHERE TableType = 3 AND RangeID IS NULL
+
+
+select * from mpm.Products
+select * from mpm.ProductTypes
+select * from mpm.Sheets
+select * from mpm.MRanges
+select * from mpm.MSeries
+select * from mpm.MTables
+select top 10 * from mpm.Cells
 
 --   TRUNCATE TABLE mpm.Sheets
 --   TRUNCATE TABLE mpm.Products

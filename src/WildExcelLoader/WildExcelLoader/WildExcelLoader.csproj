@@ -38,4 +38,8 @@
     <ProjectReference Include="..\EFCore_DBLibrary\EFCore_DBLibrary.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="scafout\" />
+  </ItemGroup>
+
 </Project>

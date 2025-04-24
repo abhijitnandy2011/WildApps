@@ -26,6 +26,14 @@ public partial class Sheet
     [StringLength(2048)]
     public string Style { get; set; } = null!;
 
+    public int StartRowNum { get; set; }
+
+    public int StartColNum { get; set; }
+
+    public int EndRowNum { get; set; }
+
+    public int EndColNum { get; set; }
+
     public int CreatedBy { get; set; }
 
     [Column(TypeName = "datetime")]

@@ -38,6 +38,22 @@ namespace WildExcelLoader.models
         public int Row;        
     }
 
+    internal class CellStyle
+    {
+        public string bg  {get; set; }
+        public CellFont font {get; set; }
+    };
+
+    internal class CellFont
+    {
+        public string c{get; set; }
+        public string n{get; set; }
+        public string b{get; set; }
+        public string i {get; set; }
+        public string u {get; set; }
+        public string s {get; set; }
+    };
+
     public enum RStatus
     {
         Inactive = 1,

@@ -7,7 +7,11 @@ CREATE TABLE mpm.Sheets(
     Name             UDT_Name,
     SheetNum         UDT_Sequence,   -- separate from SheetID as the sheet order can be changed, wont change sheet id then
     Style            UDT_Style,     -- any colors or bold applied to the sheet name
-    CreatedBy        UDT_ID,
+    StartRowNum      UDT_CellRow,
+    StartColNum      UDT_CellColumn,
+    EndRowNum        UDT_CellRow,
+    EndColNum        UDT_CellColumn,
+	CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
@@ -50,7 +54,7 @@ CREATE TABLE mpm.ProductTypes(
 DROP TABLE mpm.MRanges;
 CREATE TABLE mpm.MRanges(
     VFileID          UDT_ID,
-	RangeID          UDT_ID,
+	RangeID          UDT_ID,    -- unique within file
     Name             UDT_Name,
 	SheetID          UDT_ID,    -- in which sheet to export the range when downloading
 	ProductID        UDT_ID,
@@ -76,8 +80,6 @@ CREATE TABLE mpm.MSeries(
 	HeaderTableID    UDT_ID,
 	DetailTableID    UDT_ID,
     SeriesNum        UDT_Sequence,
-    InfoTable1ID     UDT_ID_Opt,
-	InfoTable2ID     UDT_ID_Opt,
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -90,13 +92,17 @@ CREATE TABLE mpm.MSeries(
 DROP TABLE mpm.MTables;
 CREATE TABLE mpm.MTables(
     VFileID          UDT_ID,
-	TableID          UDT_ID,  
+	TableID          UDT_ID,       -- unique within a file
     Name             UDT_Name_med,
     NumRows          UDT_CellRow,    
 	NumCols          UDT_CellColumn,
+	StartRowNum      UDT_CellRow,     -- location within sheet
+    StartColNum      UDT_CellColumn,
+    EndRowNum        UDT_CellRow,
+    EndColNum        UDT_CellColumn,  
 	RangeID          UDT_ID_Opt,   -- if related to a Range, its ID will be here
 	SeriesID         UDT_ID_Opt,    -- if related to a Series, its ID will be here
-	SheetID          UDT_ID_Opt,       -- needed for master tables
+	SheetID          UDT_ID,       -- needed for master tables
 	TableType        UDT_ID,          -- 1:Master, 2:Range header, 3:Series header, 100+:Series detail table types(min/max, fat etc)
     Style            UDT_CellStyle,   
     HeaderRow        UDT_Bool,
@@ -116,8 +122,8 @@ CREATE TABLE mpm.MTables(
 DROP TABLE mpm.Cells;
 CREATE TABLE mpm.Cells(
     VFileID          UDT_ID,
-	TableID          UDT_ID, 
-	CellID           UDT_ID,   -- unique only within a table, useful for formulas later when cell row/col changes but id doesnt
+	SheetID          UDT_ID,   -- unique only within a file
+	CellID           UDT_ID,   -- unique only within a sheet, useful for formulas later when cell row/col changes but id doesnt
     RowNum           UDT_CellRow,   -- unique only within a table, its table scoped
     ColNum           UDT_CellColumn,  -- unique only within a table, its table scoped
     Value            UDT_CellValue,
@@ -130,12 +136,8 @@ CREATE TABLE mpm.Cells(
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_CellsID PRIMARY KEY (VFileID, TableID, CellID)
+    CONSTRAINT PK_MPM_CellsID PRIMARY KEY (VFileID, SheetID, CellID)
 );
 
 
 
-DROP TABLE mpm.FormulaRefs;
-CREATE TABLE mpm.FormulaRefs(
-Target, source
-)

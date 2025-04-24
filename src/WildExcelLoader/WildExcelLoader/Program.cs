@@ -3,16 +3,22 @@
 // Must detect invalid tables
 //
 
+// Issues:
+//   Some of the functions do not return with error code, return error code not checked in caller.
+
 
 using EFCore_DBLibrary;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Configuration;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using OfficeOpenXml.Table;
 using System.Drawing;
+using System.Text.Json;
 using WildExcelLoader.models;
 using WildSheetLoader;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 
 
@@ -76,6 +82,7 @@ void loadCarsFile(string filePath)
                     List<MRangeWithRow> mRangesWithRow = new();
                     List<MSeriesWithRow> mSeriesWithHeaderTableRow = new();
                     List<MTableWithRow> seriesDetailMTablesWithRow = new();
+                    Dictionary<int, MTable> dictSeriesIdVsSeriesHdrMTable = new();
 
                     // Entities
                     List<Cell> efCells = new();
@@ -92,20 +99,43 @@ void loadCarsFile(string filePath)
                     {
                         Console.WriteLine(sheet.Name);
                     }*/
-                    
+
                     // Create the DB sheet
+                    int sheetStartRow = sheet.Dimension.Start.Row;
+                    int sheetEndRow = sheet.Dimension.End.Row;
+                    int sheetStartCol = sheet.Dimension.Start.Column;
+                    int sheetEndCol = sheet.Dimension.End.Column;
+                    if (sheetEndCol > 500)
+                    {
+                        Console.WriteLine("Really big COLS:" + sheetEndCol);
+                        sheetEndCol = 500;
+                    }                                      
                     var efSheet = new Sheet
                     {
                         VfileId = FILE_ID,
                         SheetId = sheet.Index+1,  // dont want this 0 based
                         Name = sheet.Name,
                         SheetNum = (short)(sheet.Index+1),
-                        Style = "",                        
+                        Style = "",
+                        StartRowNum = sheetStartRow,
+                        StartColNum = sheetStartCol,
+                        EndRowNum = sheetEndRow,
+                        EndColNum = sheetEndCol,
                         CreatedBy = 1,
                         CreatedDate = DateTime.Today,
                         Rstatus = (byte)RStatus.Active
                     };
-                    db.Sheets.Add(efSheet);                    
+                    db.Sheets.Add(efSheet);
+                    // Add the cells of the sheet  
+                    addSheetCells(
+                        efSheet.SheetId,
+                        efCells,
+                        FILE_ID,
+                        sheetStartRow,
+                        sheetEndRow,
+                        sheetStartCol,
+                        sheetEndCol,
+                        sheet.Cells);
 
                     // Tables
                     var tables = sheet.Tables;
@@ -120,8 +150,13 @@ void loadCarsFile(string filePath)
                             VfileId = FILE_ID,
                             TableId = tableID++,
                             Name = table.Name,  // TODO: Tablename is not unique, we need to check for this by putting the names in a set
-                            NumRows = numRows,
+                            NumRows = numRows,   // Will probably not be needed anymore
                             NumCols = numCols,
+                            StartRowNum = addr.Start.Row,
+                            StartColNum = addr.Start.Column,
+                            EndRowNum = addr.End.Row,
+                            EndColNum = addr.End.Column,
+                            SheetId = efSheet.SheetId,   // RangeId, SeriesId updated later if not master table
                             TableType = -1,     // unknown at the moment, updated later when table parsed
                             Style = table.TableStyle.ToString(),
                             HeaderRow = table.ShowHeader,
@@ -138,7 +173,7 @@ void loadCarsFile(string filePath)
                             table,
                             efMTable,
                             efSheet,
-                            ref productID,
+                            ref productID,   // passed by ref as this is incremented by this function, so next call can use a different ID
                             ref productTypeID,
                             dictProducts,
                             dictProductTypes,
@@ -147,6 +182,7 @@ void loadCarsFile(string filePath)
                             mRangesWithRow,
                             mSeriesWithHeaderTableRow,
                             seriesDetailMTablesWithRow,
+                            dictSeriesIdVsSeriesHdrMTable,
                             efCells);
 
                         efMTables.Add(efMTable);
@@ -159,10 +195,11 @@ void loadCarsFile(string filePath)
                         postProcessSheet(
                            mRangesWithRow,
                            mSeriesWithHeaderTableRow,
+                           dictSeriesIdVsSeriesHdrMTable,
                            seriesDetailMTablesWithRow);
                     }   
                     // Save sheet specific data
-                    saveRangesSeriesAndTablesInDB(
+                    addRangesSeriesAndTablesToContext(
                         db,                       
                         efMTables,
                         mRangesWithRow,
@@ -170,9 +207,9 @@ void loadCarsFile(string filePath)
                         efCells
                     );
 
-                    // Add sheet cells & tables                    
-                    // db.Cells.AddRange(efCells.ToArray());
-                    //db.SaveChanges();
+                    // Add sheet cells                    
+                    db.Cells.AddRange(efCells);
+                    db.SaveChanges();
 
                 } // end for-sheets
 
@@ -210,10 +247,15 @@ const string RANGE_HEADER_TABLE = "RangeHeaderTable";
 const string RANGE_SERIES_TABLE = "RangeSeriesTable";
 const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
 
+
+
 (int code, string msg) postProcessSheet(
     List<MRangeWithRow> mRangesWithRow,
     List<MSeriesWithRow> mSeriesWithHeaderTableRow,
-    List<MTableWithRow> seriesDetailMTablesWithRow)
+    Dictionary<int, MTable> dictSeriesIdVsSeriesHdrMTable,
+    List<MTableWithRow> seriesDetailMTablesWithRow)  // cannot make into dict of "series name" vs "series detail MTable" as
+                                                     // same series name can be there in multiple range.
+                                                     // Series id of series detail table is not known at this point.
 {
     // Sort the ranges and assign RangeNum which is the order in which the range appears in its Sheet
     mRangesWithRow.Sort((r1, r2) =>
@@ -221,10 +263,11 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
         return r1.Row.CompareTo(r2.Row);
     });   
 
-    // Now assign the series using the sorted ranges
+    // Now assign the correct Range to the Series using the sorted ranges
     for (int rangeIdx = 0; rangeIdx < mRangesWithRow.Count; ++rangeIdx)
     {
-        mRangesWithRow[rangeIdx].DBRange.RangeNum = (short)(rangeIdx + 1);
+        MRangeWithRow currRangeWithRow = mRangesWithRow[rangeIdx];
+        currRangeWithRow.DBRange.RangeNum = (short)(rangeIdx + 1);  // assign RangeNum
         int seriesNum = 1;
         // Series name to Series mapping for this range - built while assigning series
         // Used later to assign SeriesId to series detail MTables & DetailTableId back to the Series as well.
@@ -238,22 +281,45 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
                 {
                     // There is a next range
                     var nextRange = mRangesWithRow[rangeIdx + 1];
-                    if (seriesWithRow.Row < nextRange.Row)
+                    if (seriesWithRow.Row < nextRange.Row)  // ranges are sorted, so the first iter when this is true. the range above nextRange is the one
                     {
-                        seriesWithRow.DBSeries.RangeId = mRangesWithRow[rangeIdx].DBRange.RangeId;
+                        seriesWithRow.DBSeries.RangeId = currRangeWithRow.DBRange.RangeId; // Assign RangeId to Series(Series header & detail tables updated in next loops)
                         seriesWithRow.DBSeries.SeriesNum = (short)seriesNum++;
                         dictSeriesNameVsMSeries[seriesWithRow.DBSeries.Name] = seriesWithRow.DBSeries;
+                        // Assign RangeId to Series Header table
+                        var seriesId = seriesWithRow.DBSeries.SeriesId;
+                        if (dictSeriesIdVsSeriesHdrMTable.ContainsKey(seriesId))
+                        { 
+                            var seriesHdrMTable = dictSeriesIdVsSeriesHdrMTable[seriesWithRow.DBSeries.SeriesId];
+                            seriesHdrMTable.RangeId = seriesWithRow.DBSeries.RangeId;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"postProcessSheet: Series Header MTable not found for SeriesId:{seriesId} while assigning RangeId to Series Header MTable");                            
+                        }
                     }
                 }
                 else
                 {
-                    // This is the last range
-                    seriesWithRow.DBSeries.RangeId = mRangesWithRow[rangeIdx].DBRange.RangeId;
+                    // There is still some unassigned series and this is the last range
+                    seriesWithRow.DBSeries.RangeId = currRangeWithRow.DBRange.RangeId;   // Assign RangeId to Series
                     seriesWithRow.DBSeries.SeriesNum = (short)seriesNum++;
                     dictSeriesNameVsMSeries[seriesWithRow.DBSeries.Name] = seriesWithRow.DBSeries;
+                    // Assign RangeId to Series Header table
+                    var seriesId = seriesWithRow.DBSeries.SeriesId;
+                    if (dictSeriesIdVsSeriesHdrMTable.ContainsKey(seriesId))
+                    {
+                        var seriesHdrMTable = dictSeriesIdVsSeriesHdrMTable[seriesWithRow.DBSeries.SeriesId];
+                        seriesHdrMTable.RangeId = seriesWithRow.DBSeries.RangeId;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"postProcessSheet: Series Header MTable not found for SeriesId:{seriesId} while assigning RangeId to Series Header MTable");
+                    }
                 }
             }
         } // end-foreach (var seriesWithRow
+
         // Now update the series names in the series details tables
         // but only for the ones found to be in *this* range
         foreach (var seriesDetailWithRow in seriesDetailMTablesWithRow)
@@ -267,9 +333,9 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
                     var nextRange = mRangesWithRow[rangeIdx + 1];
                     if (seriesDetailWithRow.Row < nextRange.Row)
                     {
-                        seriesDetailWithRow.DBTable.RangeId = mRangesWithRow[rangeIdx].DBRange.RangeId;
+                        seriesDetailWithRow.DBTable.RangeId = currRangeWithRow.DBRange.RangeId; // Assign RangeId to Series Detail table
                         assignSeriesIdToSeriesDetail(
-                            mRangesWithRow[rangeIdx].setSeriesNames,
+                            currRangeWithRow.setSeriesNames,
                             rangeIdx,
                             dictSeriesNameVsMSeries,
                             seriesDetailWithRow);
@@ -279,9 +345,9 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
                 else
                 {
                     // This is the last range
-                    seriesDetailWithRow.DBTable.RangeId = mRangesWithRow[rangeIdx].DBRange.RangeId;
+                    seriesDetailWithRow.DBTable.RangeId = currRangeWithRow.DBRange.RangeId;  // Assign RangeId to Series Detail table
                     assignSeriesIdToSeriesDetail(
-                            mRangesWithRow[rangeIdx].setSeriesNames,
+                            currRangeWithRow.setSeriesNames,
                             rangeIdx,
                             dictSeriesNameVsMSeries,
                             seriesDetailWithRow);
@@ -289,6 +355,11 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
                 }
             }
         } // end-foreach (var seriesDetailWithRow 
+
+        if(mRangesWithRow[rangeIdx].setSeriesNames.Count > 0){
+            Console.WriteLine($"setSeriesNames is not empty after RangeId:{currRangeWithRow.DBRange.RangeId} completed");
+        }
+
 
     } // end-for (int rangeIdx...
     return (0, "");
@@ -310,6 +381,8 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
             seriesDetailWithRow.DBTable.SeriesId = dictSeriesNameVsMSeries[seriesName].SeriesId;
             seriesDetailWithRow.DBTable.Name = $"{RANGE_SERIES_DETAIL_TABLE}_{seriesName}_seriesid_{seriesDetailWithRow.DBTable.SeriesId}";
             dictSeriesNameVsMSeries[seriesName].DetailTableId = seriesDetailWithRow.DBTable.TableId;
+            // Clear the series from setSeriesNames for later checking whether this becomes empty(should be empty after range is done)
+            setSeriesNames.Remove(seriesName);             
         }
         else
         {
@@ -325,7 +398,7 @@ const string RANGE_SERIES_DETAIL_TABLE = "RangeSeriesDetailTable";
     return (0, "");
 }
 
-void saveRangesSeriesAndTablesInDB(
+void addRangesSeriesAndTablesToContext(
     WildContext db,
     List<MTable> efMTables, 
     List<MRangeWithRow> mRangesWithRow,
@@ -349,9 +422,9 @@ void saveRangesSeriesAndTablesInDB(
     //db.SaveChanges();
 
     db.Tables.AddRange(efMTables);
-    db.Cells.AddRange(efCells);
+    //db.Cells.AddRange(efCells);
 
-    db.SaveChanges();
+    //db.SaveChanges();
 }
 
 
@@ -405,6 +478,7 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
     List<MRangeWithRow> mRangesWithRow,
     List<MSeriesWithRow> mSeriesWithHeaderTableRow,
     List<MTableWithRow> seriesDetailMTablesWithRow,
+    Dictionary<int, MTable> dictSeriesIdVsSeriesHdrMTable,
     List<Cell> efCells)
 {
     var addr = table.Address;
@@ -498,7 +572,7 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
                             Rstatus = (byte)RStatus.Active
                         });
                     }
-                    // Add the range
+                    // Add the range just figured out above
                     MRangeWithRow mRWR = new()
                     {
                         Row = startRow,   // Add the range's row num to do series range assigns using distance closeness later & decide the RangeNum
@@ -517,9 +591,8 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
                             Rstatus = (byte)RStatus.Active
                         },
                     };
-                    mRWR.setSeriesNames.UnionWith(tokens);
+                    mRWR.setSeriesNames.UnionWith(tokens); // The series names got from the RANGE HEADER are put here
                     mRangesWithRow.Add(mRWR);
-                    addMTableCells(efMTable.TableId, efCells, FILE_ID, startRow, endRow, startCol, endCol, cells);
                     //To be done at end only
                     ++rangeID;
                 }
@@ -583,11 +656,12 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
             Row = startRow
         });
         // Update the Series Header MTable 
-        efMTable.SeriesId = seriesID;
+        efMTable.SeriesId = seriesID;   // For Series Header table, the SeriesId is known, but RangeId unknown at this point
+        efMTable.RangeId = -1;
         efMTable.TableType = (int)TableTypes.RANGE_SERIES_HEADER;
         efMTable.Name = $"{RANGE_SERIES_TABLE}_{seriesName}_seriesid_{seriesID}";
-        // Add the Series Header MTable cells
-        addMTableCells(efMTable.TableId, efCells, FILE_ID, startRow, endRow, startCol, endCol, cells);
+        // Add to dict
+        dictSeriesIdVsSeriesHdrMTable[seriesID] = efMTable;
         //To be done at end only
         ++seriesID;
     }
@@ -623,12 +697,9 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
             Row = startRow,
         });
         efMTable.TableType = (int)TableTypes.RANGE_SERIES_DETAIL_MINMAX;
-        efMTable.Name = seriesName;  // series id unknown at this point
-        efMTable.RangeId = -1;
+        efMTable.Name = seriesName;  
+        efMTable.RangeId = -1;    // For series detail table, the RangeId & SeriesId is unknown at this point
         efMTable.SeriesId = -1;
-        // Add cells
-        addMTableCells(efMTable.TableId, efCells, FILE_ID, startRow, endRow, startCol, endCol, cells);
-
     }
     else
     {
@@ -641,8 +712,6 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
         efMTable.TableType = (int)TableTypes.MASTER;
         efMTable.Name = tableName; // $"{MASTER_TABLE}_{efMTable.Name}";
         efMTable.SheetId = efSheet.SheetId;
-        // Add cells
-        addMTableCells(efMTable.TableId, efCells, FILE_ID, startRow, endRow, startCol, endCol, cells);
     }
 
     return ((int)ParseRetCode.SUCCESS, "");
@@ -650,37 +719,59 @@ const int RANGE_SERIES_DETAIL_MIN_COLS = 3;
 
 
 
-static void addMTableCells(
-    int tableId, 
+static void addSheetCells(
+    int sheetId, 
     List<Cell> efCells,
-    int FILE_ID,
+    int fileId,
     int startRow,
     int endRow, 
     int startCol, 
     int endCol, 
     ExcelRange cells)
 {
-    // Add the table cells
-    int cellID = 1;
+    // Add the sheet cells
+    int cellID = 1;       // NOTE: unique only within a sheet
     for (int tr = startRow; tr <= endRow; ++tr)
     {
         for (int tc = startCol; tc <= endCol; ++tc)
         {
-            string cellValue = cells[tr, tc].Value?.ToString() ?? "";
-            string cellFormula = cells[tr, tc].Formula;
-            string cellComment = cells[tr, tc].Comment?.ToString() ?? "";
+            var cell = cells[tr, tc];
+            string cellValue = cell.Value?.ToString() ?? "";
+            string cellFormula = cell.Formula;
+            string cellComment = cell.Comment?.ToString() ?? "";
+            string cellFormat = cell.Style.Numberformat.Format;
+            // Compose the style
+            // TODO: Lot more details of the style has to be captured
+            var cellStyle = GetBriefCellStyle(cell);                     
+            // Condition for defining an 'empty' cell is below:
+            if (cellValue == "" && cellFormula == "" && cellComment == "" &&
+                cellFormat == "General" && 
+                cellStyle.bg == "")   // TODO: The style may need more detailed checks
+            {
+                // Skip cell as its values are empty
+                // TODO: Style and formatting needs to be checked too
+                continue;
+            }
+            // Store defaults as empty strings, default values are known
+            // Format default
+            if(cellFormat == "General")
+            {
+                cellFormat = "";
+            }
+            // TODO: Detect if all properties are the default values and shorten the json or make this empty string            
+            string styleJson = GetCellStyleAsJSONString(cellStyle);
             // Add db cell
             var efCell = new Cell
             {
-                VfileId = FILE_ID,
-                TableId = tableId,
+                VfileId = fileId,
+                SheetId = sheetId,
                 CellId = cellID,
-                RowNum = tr - startRow + 1,  // 1 based index
-                ColNum = tc - startCol + 1,
+                RowNum = tr,  // 1 based index
+                ColNum = tc,
                 Value = cellValue,
                 Formula = cellFormula,
-                Format = "",
-                Style = "",
+                Format = cellFormat,
+                Style = styleJson,
                 Comment = cellComment,
                 CreatedBy = 1,
                 CreatedDate = DateTime.Today,
@@ -690,6 +781,50 @@ static void addMTableCells(
             ++cellID;
         }
     }
+}
+
+// Apply default values here to set empty strings
+// {"bg":"","font":{"c":"","n":"Calibri","b":true,"i":false,"u":false,"s":false}}
+static CellStyle GetBriefCellStyle(ExcelRange cell)
+{
+    CellStyle cellStyle = new()
+    {
+        bg = cell.Style.Fill.BackgroundColor.Rgb ?? "",
+        font = new() {
+            c = cell.Style.Font.Color.Rgb,
+            n = cell.Style.Font.Name,
+            b = cell.Style.Font.Bold ? "1":"",
+            i = cell.Style.Font.Italic ? "1" : "",
+            u = cell.Style.Font.UnderLine ? "1" : "",
+            s = cell.Style.Font.Strike ? "1" : "",
+        }
+    };
+    if (cellStyle.font.n == "Calibri")
+    {
+        cellStyle.font.n = "";
+    }
+    return cellStyle;
+}
+
+// Apply rules to shorten style json here
+// {"bg":"","font":{"c":"","n":"","b":"","i":"","u":"","s":""}}
+static string GetCellStyleAsJSONString(CellStyle style)
+{
+    var font = style.font;
+    if (style.bg== "" && 
+        font.c =="" &&
+        font.n == "" &&       
+        font.i == "" &&
+        font.u == "" &&
+        font.s == "")
+    {
+        if (font.b == "")
+            return "";
+        else if (font.b == "1")
+            return "{\"font\":{\"b\":\"1\"}";
+
+    }
+    return JsonSerializer.Serialize(style);    
 }
 
 
@@ -707,7 +842,7 @@ var listSkip = new List<string>()
 {
     ""
 };
-
+/*
 // TODO: return errors
 void createExcelFile(int fileId, string outputPath)
 {    
@@ -1005,7 +1140,7 @@ void createExcelFile(int fileId, string outputPath)
     //Console.WriteLine($"Processing {tableName}...");
     return (tableName, startRow, startCol, endRow, endCol);
 }
-
+*/
 
 //----------------------------- main -----------------------------
 // Upload
@@ -1021,7 +1156,7 @@ BuildOptions();
 
 //loadWorkbook(filePath);
 
-//loadCarsFile(filePath);
+loadCarsFile(filePath);
 
 //createExcelFile(FILE_ID, outputPath);
 

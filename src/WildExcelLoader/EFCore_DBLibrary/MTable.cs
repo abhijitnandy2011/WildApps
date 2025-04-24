@@ -25,6 +25,14 @@ public partial class MTable
 
     public int NumCols { get; set; }
 
+    public int StartRowNum { get; set; }
+
+    public int StartColNum { get; set; }
+
+    public int EndRowNum { get; set; }
+
+    public int EndColNum { get; set; }
+
     [Column("RangeID")]
     public int? RangeId { get; set; }
 
@@ -32,7 +40,7 @@ public partial class MTable
     public int? SeriesId { get; set; }
 
     [Column("SheetID")]
-    public int? SheetId { get; set; }
+    public int SheetId { get; set; }
 
     public int TableType { get; set; }
 

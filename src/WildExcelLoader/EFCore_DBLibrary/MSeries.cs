@@ -35,12 +35,6 @@ public partial class MSeries
 
     public short SeriesNum { get; set; }
 
-    [Column("InfoTable1ID")]
-    public int? InfoTable1Id { get; set; }
-
-    [Column("InfoTable2ID")]
-    public int? InfoTable2Id { get; set; }
-
     public int CreatedBy { get; set; }
 
     [Column(TypeName = "datetime")]

@@ -52,7 +52,7 @@ public partial class WildContext : DbContext
     {
         modelBuilder.Entity<Cell>(entity =>
         {
-            entity.HasKey(e => new { e.VfileId, e.TableId, e.RowNum, e.ColNum }).HasName("PK_MPM_CellsID");
+            entity.HasKey(e => new { e.VfileId, e.SheetId, e.RowNum, e.ColNum }).HasName("PK_MPM_CellsID");
         });
 
         modelBuilder.Entity<MTable>(entity =>
