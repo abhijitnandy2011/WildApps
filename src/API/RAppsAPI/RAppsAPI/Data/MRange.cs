@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
-using RAppsAPI.Data;
 
 namespace EFCore_DBLibrary;
 
@@ -48,11 +47,4 @@ public partial class MRange
 
     [Column("RStatus")]
     public byte Rstatus { get; set; }
-
-    [ForeignKey(nameof(VfileId))]
-    public virtual VFile File { get; set; }
-    
-    [ForeignKey("VfileId, ProductTypeId")]
-    public virtual ProductType ProductType { get; set; } 
-    
 }

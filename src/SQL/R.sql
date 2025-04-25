@@ -122,6 +122,8 @@ select * from mpm.MSeries
 select * from mpm.MTables
 select top 10 * from mpm.Cells
 
+select * from mpm.Cells
+
 --   TRUNCATE TABLE mpm.Sheets
 --   TRUNCATE TABLE mpm.Products
 --   TRUNCATE TABLE mpm.ProductTypes

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
-using RAppsAPI.Data;
 
 namespace EFCore_DBLibrary;
 
@@ -37,8 +36,4 @@ public partial class Product
 
     [Column("RStatus")]
     public byte Rstatus { get; set; }
-
-    [ForeignKey(nameof(VfileId))]
-    public virtual VFile File { get; set; }
-    public virtual List<ProductType> ProductTypes { get; set; } = new List<ProductType>();
 }

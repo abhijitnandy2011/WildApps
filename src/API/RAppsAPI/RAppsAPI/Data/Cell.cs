@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EFCore_DBLibrary;
 
-[PrimaryKey("VfileId", "TableId", "CellId")]
+[PrimaryKey("VfileId", "SheetId", "CellId")]
 [Table("Cells", Schema = "mpm")]
 public partial class Cell
 {
@@ -15,8 +15,8 @@ public partial class Cell
     public int VfileId { get; set; }
 
     [Key]
-    [Column("TableID")]
-    public int TableId { get; set; }
+    [Column("SheetID")]
+    public int SheetId { get; set; }
 
     [Key]
     [Column("CellID")]

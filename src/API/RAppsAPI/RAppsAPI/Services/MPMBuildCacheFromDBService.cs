@@ -58,7 +58,7 @@ namespace RAppsAPI.Services
                 Console.WriteLine("BuildCacheFromDBService: Building cache rows for request {0}...", req.ReqId);
                 // Make new cache entry/update entry for sheets mentioned in req marking the
                 // required rows as 'building'
-                //MakeOrUpdateCacheRowsState(req, 'building');
+                MakeOrUpdateCacheRowsState(req, 'building');
 
                 // Update cache from DB
                 // Refresh cache from db marking rows as from 'db' or front will keep trying
@@ -83,9 +83,13 @@ namespace RAppsAPI.Services
             }
 
             return 0;
-
         }
-        
+
+        /*public void MakeOrUpdateCacheRowsState(req, 'building')
+        {
+
+        }*/
+
 
     }
 
