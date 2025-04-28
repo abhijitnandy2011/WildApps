@@ -1,13 +1,15 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using RAppsAPI.Data;
 using RAppsAPI.Models.MPM;
 using static RAppsAPI.Data.DBConstants;
 
 namespace RAppsAPI.Services
 {
-    public class MPMService(RDBContext context, 
-        IMPMBuildCacheFromDBService _buildCacheFromDBService,
+    public class MPMService(RDBContext context,
+        IMemoryCache _memoryCache,
+        IMPMBuildCacheService _buildCacheFromDBService,
         IServiceProvider _serviceProvider) : IMPMService
     {
         public async Task<MPMGetProductInfoResponseDTO> GetProductInfo(int fileId)
@@ -122,7 +124,7 @@ namespace RAppsAPI.Services
 
 
         // Get Range Info
-        public async Task<MPMGetRangeInfoResponseDTO> GetRangeInfo(int fileId, int rangeId, int? fromSeries, int? toSeries)
+        /*public async Task<MPMGetRangeInfoResponseDTO> GetRangeInfo(int fileId, int rangeId, int? fromSeries, int? toSeries)
         {
             try
             {
@@ -408,18 +410,117 @@ namespace RAppsAPI.Services
             currRow.Cells[index].Style = res.Style;
             currRow.Cells[index].Comment = res.Comment;
         }
-
+        */
 
         // Get series detail data
-        public async Task<string> GetSeriesDetailInfo(MPMReadRequestDTO readDTO)
+        public async Task<MPMReadRequestResponseDTO> GetFileRows(MPMReadRequestDTO readDTO)
         {
-            // Return imm if no lock on cache
-            var success = await _buildCacheFromDBService.Build(readDTO, 0, _serviceProvider);
-            if (success == -1)
+            // Check if cache has rows
+            MPMReadRequestResponseDTO response;
+            var retCode = GatherRowsFromCache(readDTO, out response);
+            if (retCode == 0)
             {
-                Console.WriteLine("GetSeriesDetailInfo: Request {0} Cache lock failed", readDTO.ReqId);
+                return response;
             }
-            return "";
+            // Try to build the cache from DB
+            int triesLeft = 3;
+            bool cacheBuilt = false;
+            do
+            {
+                retCode = await _buildCacheFromDBService.BuildFromDB(readDTO, 0, _serviceProvider);
+                if (retCode == 0)
+                {
+                    cacheBuilt = true;
+                    break;
+                }                
+                --triesLeft;
+                Console.WriteLine($"GetFileRows: Failed to build cache: req {readDTO.ReqId}, tries left:{triesLeft}");
+            } while (triesLeft > 0);
+            if (cacheBuilt)
+            {
+                // Try to gather rows again
+                retCode = GatherRowsFromCache(readDTO, out response);
+                if (retCode == 0)
+                {
+                    return response;
+                }
+                else
+                {
+                    response.Code = -2;
+                    Console.WriteLine($"GetFileRows: Failed to get rows even after building cache: req {readDTO.ReqId}");
+                }
+            }
+            else
+            {
+                // Failed to build cache after multiple tries                
+                response.Code = -1;
+                Console.WriteLine($"GetFileRows: Failed to build cache after multiple tries: req {readDTO.ReqId}");
+            }
+            response.Message = "Failed to get rows.";            
+            return response;
+        }
+
+        // Try to gather rows from cache, or return failed
+        private int GatherRowsFromCache(MPMReadRequestDTO req, out MPMReadRequestResponseDTO response)
+        {
+            response = new()
+            {
+                Code = 0,
+                Message = "",
+                ReqId = req.ReqId,
+                FileId = req.FileId,
+                Sheets = new()
+            };
+            int retCode = 0;  // 1 - warning, not all sheets found, 2 - not all rows found in some sheets, 3-both
+            foreach (var sheet in req.Sheets)
+            {
+                var sheetId = sheet.SheetId;
+                var cacheKey = "MPM_" + req.FileId + "_" + sheetId;
+                MPMSheetCacheEntry? entry;
+                var success = _memoryCache.TryGetValue(cacheKey, out entry);
+                if (!success || entry == null)
+                {
+                    Console.WriteLine($"GatherRowsFromCache: Cache key not found, for sheet, req:{req.ReqId}, key:{cacheKey}, sheet:{sheetId}");
+                    retCode |= 0x1;
+                    break;  // TODO: If we want to gather sheets which are there anyway, then continue
+                }
+                // Sheet cache entry is there
+                MPMReadResponseSheet sheetEntry = new()
+                {
+                    SheetId = sheetId,
+                    Rows = new(),
+                };                
+                // Check and add rows
+                var dict = entry.RowNumberVsRowEntry;
+                HashSet<int> setEmptyRows = new HashSet<int>(entry.EmptyRows);
+                var rect = sheet.Rects[0];
+                for (var r = rect.top; r <= rect.bottom; r++)
+                {
+                    if (setEmptyRows.Contains(r)) 
+                    {
+                        continue; // no need to gather empty row
+                    }
+                    // Row may not be there in dict if e.g. this req is asking for different rows than was cached
+                    if (!dict.ContainsKey(r))
+                    {                        
+                        Console.WriteLine($"GatherRowsFromCache: Row not found in cache dict nor empty rows set, req:{req.ReqId}, key:{cacheKey}, row:{r}");
+                        retCode |= 0x2;
+                        break; // TODO: If we want to gather rows in this sheet which are there anyway, then continue
+                    }
+                    // Gather available row
+                    var cacheRowEntry = dict[r];
+                    var responseRow = new MPMReadResponseRow()
+                    {
+                        RN = cacheRowEntry.Row.RN,
+                        Cells = cacheRowEntry.Row.Cells, // TODO: Can cache entry be lost while req is processed/before response?
+                                                         // GC should not clear this even if cache entry nulls
+                    };
+                    sheetEntry.Rows.Add(responseRow);
+                }
+                // Add to response only at end after all rows gathered for this sheet
+                response.Sheets.Add(sheetEntry);
+            } // for-sheet
+            return retCode;
         }
 
 

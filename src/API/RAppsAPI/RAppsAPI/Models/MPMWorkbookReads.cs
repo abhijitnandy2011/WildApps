@@ -11,8 +11,7 @@
 
     public class MPMWorkbookReadsSheet
     {
-        public int SheetNum { get; set; }  // sheet number
-        public string Name { get; set; }
+        public int SheetId { get; set; } 
         public List<MPMWorkbookReadsRect> Rects { get; set; }
     }
 
@@ -23,5 +22,28 @@
         public int right { get; set; }
         public int bottom { get; set; }
     }
-    
+
+    public class MPMReadRequestResponseDTO
+    {
+        public int Code { get; set; } = -1;
+        public string Message { get; set; } = string.Empty;
+        public int ReqId { get; set; } // unique Id set by client to track req
+        public int FileId { get; set; }        
+        public List<MPMReadResponseSheet> Sheets { get; set; }
+    }
+
+    public class MPMReadResponseSheet
+    {
+        public int SheetId { get; set; }
+        //public List<int> EmptyRows { get; set; }
+        public List<MPMReadResponseRow> Rows { get; set; }
+    }
+
+    public class MPMReadResponseRow
+    {
+        // RowNum is needed so that entire rows can be skipped if empty
+        public int RN { get; set; }
+        public List<MPMRichCell> Cells { get; set; }
+    }
+
 }

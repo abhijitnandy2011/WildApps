@@ -223,6 +223,14 @@ case WHEN ColNum=10 Then Value end AS C10
 GROUP BY RowNum
 
 
+---------------------------
+-- 26th Apr
+
+select * from mpm.Cells where 
+(RowNum >=1 and RowNum <=5 and ColNum >=1 and ColNum<=5) OR
+(RowNum >=6 and RowNum <=10 and ColNum >=1 and ColNum<=5) 
+
+
 
 
 

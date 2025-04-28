@@ -1,5 +1,4 @@
 ﻿
-using EFCore_DBLibrary;
 using Microsoft.EntityFrameworkCore;
 
 
@@ -44,7 +43,7 @@ namespace RAppsAPI.Data
 
         public virtual DbSet<ProductType> ProductTypes { get; set; }
 
-        public virtual DbSet<EFCore_DBLibrary.MRange> Ranges { get; set; }
+        public virtual DbSet<MRange> Ranges { get; set; }
 
         public virtual DbSet<MSeries> Series { get; set; }
 
@@ -132,7 +131,7 @@ namespace RAppsAPI.Data
 
             modelBuilder.Entity<Cell>(entity =>
             {
-                entity.HasKey(e => new { e.VfileId, e.TableId, e.RowNum, e.ColNum }).HasName("PK_MPM_CellsID");
+                entity.HasKey(e => new { e.VfileId, e.SheetId, e.RowNum, e.ColNum }).HasName("PK_MPM_CellsID");
             });
 
         }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using RAppsAPI.Data;
 using RAppsAPI.Models;
 using RAppsAPI.Models.MPM;
@@ -10,14 +11,14 @@ namespace RAppsAPI.Controllers
     [ApiController]
     public class MPMController : Controller
     {
-        private readonly IMPMService _mpmService;
+        private readonly IMPMService _mpmService;        
         private readonly IMPMBackgroundRequestQueue _reqQueue;
 
         public MPMController(IMPMService mpmService,
             IMPMBackgroundRequestQueue queue)
         {
-            _reqQueue = queue;
             _mpmService = mpmService;
+            _reqQueue = queue;            
         }
 
         [HttpPost("editFile")]
@@ -33,8 +34,8 @@ namespace RAppsAPI.Controllers
         [HttpPost("readFile")]
         public async Task<IActionResult> readFile([FromBody] MPMReadRequestDTO readDTO)
         {
-            await _mpmService.GetSeriesDetailInfo(readDTO);
-            return Ok("File read request noted");
+            var response = await _mpmService.GetFileRows(readDTO);
+            return Json(response);
         }
 
 
@@ -57,20 +58,20 @@ namespace RAppsAPI.Controllers
 
 
         // Returns range information(range header only)
-        [HttpGet("mfile/{fileId}/range/{rangeId}")]
-        public async Task<IActionResult> GetRangeInfo(int fileId, int rangeId, int? fromSeries, int? toSeries)
-        {
-            try
-            {
-                var rangeInfo = await _mpmService.GetRangeInfo(fileId, rangeId, fromSeries, toSeries);
-                return Json(rangeInfo);
-            }
-            catch (Exception ex)
-            {
-                // Log error
-                return StatusCode(500, ex.Message);
-            }
-        }
+        //[HttpGet("mfile/{fileId}/range/{rangeId}")]
+        //public async Task<IActionResult> GetRangeInfo(int fileId, int rangeId, int? fromSeries, int? toSeries)
+        //{
+        //    try
+        //    {
+        //        var rangeInfo = await _mpmService.GetRangeInfo(fileId, rangeId, fromSeries, toSeries);
+        //        return Json(rangeInfo);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        // Log error
+        //        return StatusCode(500, ex.Message);
+        //    }
+        //}
 
 
         

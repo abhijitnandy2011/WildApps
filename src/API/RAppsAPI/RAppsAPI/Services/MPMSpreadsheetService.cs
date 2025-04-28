@@ -54,7 +54,8 @@ namespace RAppsAPI.Services
 
                 // Workbook is built, now apply the edits in the req & calc()                
                 ApplyEditsToWorkbook(fileId);
-                // Update the sheet jsons in the cache from wb
+                // Update the sheet jsons in the cache from wb only for the ones mentioned in 'read'
+                // section of edit req.
                 UpdateCacheFromWorkbook(fileId);
                 // Update DB from wb - needs to be immediate as changes have to be saved.
                 // Save only delta by diffing with before snap captured during wb build
@@ -64,6 +65,9 @@ namespace RAppsAPI.Services
                 // TODO: Write JSON model needs to have file operations section too, for adding/deleting
                 // sheets etc.
                 UpdateDBFromWorkbook();
+                // Invalidate all cache entries for the wb as new wb now written.
+                // All entries made by read reqs will now have correct data.
+                InvalidateCacheEntriesForWorkbook();              
 
                 // Test code
                 Thread.Sleep(req.TestRunTime);
@@ -85,14 +89,14 @@ namespace RAppsAPI.Services
                 // Update cache from DB
                 // Refresh cache from db marking rows as from 'db' or front will keep trying
                 // for some time & then throw error assuming file change was not saved.
-                var buildCacheService = serviceProvider.GetRequiredService<IMPMBuildCacheFromDBService>();
+                var buildCacheService = serviceProvider.GetRequiredService<IMPMBuildCacheService>();
                 var readReq = new MPMReadRequestDTO{
                     ReqId = req.ReqId,
                     FileId = req.FileId,
                     TestRunTime = req.TestRunTime,
                     Sheets = req.ReadSheets,                    
                 };
-                buildCacheService.Build(readReq, Timeout.Infinite, serviceProvider);
+                buildCacheService.BuildFromData(readReq, Timeout.Infinite, serviceProvider);
             }
             catch (Exception ex)
             {
@@ -102,6 +106,10 @@ namespace RAppsAPI.Services
 
         }
 
+        private void InvalidateCacheEntriesForWorkbook()
+        {
+            throw new NotImplementedException();
+        }
 
         private (int, string) BuildWorkbookFromDB(int fileId)
         {

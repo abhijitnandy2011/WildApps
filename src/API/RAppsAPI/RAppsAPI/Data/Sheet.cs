@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace EFCore_DBLibrary;
+namespace RAppsAPI.Data;
 
 [PrimaryKey("VfileId", "SheetId")]
 [Table("Sheets", Schema = "mpm")]

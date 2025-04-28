@@ -11,7 +11,7 @@
 
     public class MPMWorkbookEditsSheet
     {
-        public int SheetNum { get; set; }  // sheet number
+        public int SheetId { get; set; }  // sheet number
         public List<MPMWorkbookEditsRow> Rows { get; set; }
     }
 

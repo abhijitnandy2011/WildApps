@@ -70,9 +70,10 @@ builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<IMPMService, MPMService>();
 builder.Services.AddSingleton<IMPMBackgroundRequestQueue, MPMBackgroundRequestQueue>();
 builder.Services.AddSingleton<IMPMSpreadsheetService, MPMSpreadsheetService>();
-builder.Services.AddSingleton<IMPMBuildCacheFromDBService, MPMBuildCacheFromDBService>();
+builder.Services.AddSingleton<IMPMBuildCacheService, MPMBuildCacheService>();
 builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
 builder.Services.AddLogging();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddAuthorization();
 
