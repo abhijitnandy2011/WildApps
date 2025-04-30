@@ -6,12 +6,13 @@
         public int ReqId { get; set; } // unique Id set by client to track req
         public int FileId { get; set; }
         public int TestRunTime { get; set; }
+        public List<string> CompletedEditRequests { get; set; } // List of completed edit reqs
         public List<MPMWorkbookReadsSheet> Sheets { get; set; }
     }
 
     public class MPMWorkbookReadsSheet
     {
-        public int SheetId { get; set; } 
+        public string SheetName { get; set; } 
         public List<MPMWorkbookReadsRect> Rects { get; set; }
     }
 
@@ -28,22 +29,42 @@
         public int Code { get; set; } = -1;
         public string Message { get; set; } = string.Empty;
         public int ReqId { get; set; } // unique Id set by client to track req
-        public int FileId { get; set; }        
-        public List<MPMReadResponseSheet> Sheets { get; set; }
+        public int FileId { get; set; }
+        public int NumSheets { get; set; }  // Add other workbook level settings here
+        public List<MPMReadResponseSheet> Sheets { get; set; }        
     }
 
     public class MPMReadResponseSheet
     {
-        public int SheetId { get; set; }
-        //public List<int> EmptyRows { get; set; }
+        public string SheetName { get; set; }   // TODO: Sheet name format may be useful later
         public List<MPMReadResponseRow> Rows { get; set; }
+        public List<MPMReadResponseTable> Tables { get; set; }
     }
 
     public class MPMReadResponseRow
     {
         // RowNum is needed so that entire rows can be skipped if empty
         public int RN { get; set; }
+        public int State { get; set; } // 1 for DB, 2 for temp
         public List<MPMRichCell> Cells { get; set; }
+    }
+
+    public class MPMReadResponseTable
+    {
+        public string TableName { get; set; }  // table name is unique
+        public int NumRows { get; set; }
+        public int NumCols { get; set; }
+        public int StartRowNum { get; set; }
+        public int StartColNum { get; set; }
+        public int EndRowNum { get; set; }
+        public int EndColNum { get; set; }
+        public int TableType { get; set; }   // Range/Series header/detail
+        public string Style { get; set; } = null!;
+        public bool HeaderRow { get; set; }
+        public bool TotalRow { get; set; }
+        public bool BandedRows { get; set; }
+        public bool BandedColumns { get; set; }
+        public bool FilterButton { get; set; }
     }
 
 }

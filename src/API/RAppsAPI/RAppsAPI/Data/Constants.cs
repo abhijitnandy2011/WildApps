@@ -12,6 +12,8 @@ namespace RAppsAPI.Data
         };
 
         public const int MAX_SERIES_NUM_IN_RANGE = 10000; // to get all series, there cant be 10000 series in a range
+
+        public const int MAX_COLS_READ_IN_SHEET = 500;
         
     }
 }

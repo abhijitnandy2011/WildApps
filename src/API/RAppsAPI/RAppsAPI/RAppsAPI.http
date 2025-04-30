@@ -24,7 +24,7 @@ Content-Type: application/json
           "top": 1,
           "left": 1,
           "right": 5,
-          "bottom": 7
+          "bottom": 8
         }
       ]
     }

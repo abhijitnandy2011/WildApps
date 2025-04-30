@@ -474,20 +474,20 @@ namespace RAppsAPI.Services
             int retCode = 0;  // 1 - warning, not all sheets found, 2 - not all rows found in some sheets, 3-both
             foreach (var sheet in req.Sheets)
             {
-                var sheetId = sheet.SheetId;
-                var cacheKey = "MPM_" + req.FileId + "_" + sheetId;
+                var sheetName = sheet.SheetName;
+                var cacheKey = "MPM_" + req.FileId + "_" + sheetName;
                 MPMSheetCacheEntry? entry;
                 var success = _memoryCache.TryGetValue(cacheKey, out entry);
                 if (!success || entry == null)
                 {
-                    Console.WriteLine($"GatherRowsFromCache: Cache key not found, for sheet, req:{req.ReqId}, key:{cacheKey}, sheet:{sheetId}");
+                    Console.WriteLine($"GatherRowsFromCache: Cache key not found, for sheet, req:{req.ReqId}, key:{cacheKey}, sheet:{sheetName}");
                     retCode |= 0x1;
                     break;  // TODO: If we want to gather sheets which are there anyway, then continue
                 }
                 // Sheet cache entry is there
                 MPMReadResponseSheet sheetEntry = new()
                 {
-                    SheetId = sheetId,
+                    SheetName = sheetName,
                     Rows = new(),
                 };                
                 // Check and add rows
@@ -512,11 +512,14 @@ namespace RAppsAPI.Services
                     var responseRow = new MPMReadResponseRow()
                     {
                         RN = cacheRowEntry.Row.RN,
+                        State = (cacheRowEntry.State == MPMCacheRowState.DB) ? 1 : 2,
                         Cells = cacheRowEntry.Row.Cells, // TODO: Can cache entry be lost while req is processed/before response?
                                                          // GC should not clear this even if cache entry nulls
                     };
                     sheetEntry.Rows.Add(responseRow);
                 }
+                // Tables
+                // TODO: Check and add the tables from this sheet
                 // Add to response only at end after all rows gathered for this sheet
                 response.Sheets.Add(sheetEntry);
             } // for-sheet
