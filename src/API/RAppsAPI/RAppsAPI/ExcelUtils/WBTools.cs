@@ -222,6 +222,67 @@ namespace RAppsAPI.ExcelUtils
             return JsonSerializer.Serialize(style);
         }
 
+        public bool AreCellStylesDifferent(ExcelRange cell1, ExcelRange cell2, string sheetName, int r, int c)
+        {
+            // Background color
+            var val1 = cell1.Style.Fill.BackgroundColor.Rgb ?? "";
+            var val2 = cell2.Style.Fill.BackgroundColor.Rgb ?? "";
+            if (val1 != val2) 
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell background color diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true; 
+            }
+            // Font Color
+            val1 = cell1.Style.Font.Color.Rgb;
+            val2 = cell2.Style.Font.Color.Rgb;
+            if (val1 != val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell font color diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Font name
+            val1 = cell1.Style.Font.Name;
+            val2 = cell2.Style.Font.Name;
+            if (val1 != val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell font name diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Font bold
+            val1 = cell1.Style.Font.Bold ? "1" : "";
+            val2 = cell2.Style.Font.Bold ? "1" : "";
+            if (val1 != val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell font bold diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Font italic
+            val1 = cell1.Style.Font.Italic ? "1" : "";
+            val2 = cell2.Style.Font.Italic ? "1" : "";
+            if (val1 != val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell font italic diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Font underline
+            val1 = cell1.Style.Font.UnderLine ? "1" : "";
+            val2 = cell2.Style.Font.UnderLine ? "1" : "";
+            if (val1 != val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell font underline diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Font strike
+            val1 = cell1.Style.Font.Strike ? "1" : "";
+            val2 = cell2.Style.Font.Strike ? "1" : "";
+            if (val1 != val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell font strike diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            return false;
+        }
+
 
         // Copy all sheets to new ExcelPackage
         // TODO: Check if tables got copied in all the sheets
@@ -254,7 +315,8 @@ namespace RAppsAPI.ExcelUtils
         }
 
 
-        // Compare 2 workbooks & prduce list of sheet names and table names that changed
+        // Compare 2 workbooks & produce list of sheet names and table names that changed.
+        // Compares all cell properties to find diff.
         public (int, string) CompareWorkbooks(
             ExcelPackage ep1,
             ExcelPackage ep2,
@@ -301,12 +363,12 @@ namespace RAppsAPI.ExcelUtils
                 {
                     for (int c = startCol1; c <= endCol1; ++c)
                     {
-                        var val1 = Cells1[r, c].Value?.ToString() ?? "";
-                        var val2 = Cells2[r, c].Value?.ToString() ?? "";
-                        if (val1 != val2)
+
+                        var cell1 = Cells1[r, c];
+                        var cell2 = Cells2[r, c];                        ;
+                        if (AreCellsDifferent(cell1, cell2, sheet1.Name, r, c))
                         {
-                            sheetIsDifferent = true;
-                            Console.WriteLine($"CompareWorkbooks: Cell value mismatch in sheet:{sheet1.Name}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                            sheetIsDifferent = true;                            
                             break;
                         }
                     }
@@ -321,6 +383,8 @@ namespace RAppsAPI.ExcelUtils
                     continue;
                 }
                 // Now compare tables
+                // TODO: Only compares table range currently. Other properties should be 
+                // compared too.
                 var tables1 = sheet1.Tables;
                 var tables2 = sheet2.Tables;
                 foreach (var table1 in tables1)
@@ -336,7 +400,8 @@ namespace RAppsAPI.ExcelUtils
                         var tableName2 = table2.Name;
                         if (tableName2 == tableName1)
                         {
-                            // Table found
+                            // Table found, compare the table range(addr) to check if it changed
+                            // TODO: Check if this works
                             wasTableFound = true;
                             var addr2 = table2.Address;                            
                             var strAddr2 = addr2.ToString();
@@ -365,6 +430,53 @@ namespace RAppsAPI.ExcelUtils
             }  // foreach (var sheet1
             return (0, "");
         }
+
+
+        // TODO: Currently only diffs value. Should diff all cell properties.
+        private bool AreCellsDifferent(ExcelRange cell1, ExcelRange cell2, string sheetName, int r, int c)
+        {
+            // Value
+            var val1 = cell1.Value?.ToString() ?? "";
+            var val2 = cell2.Value?.ToString() ?? "";
+            if (val1 == val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell value diff in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Formula
+            val1 = cell1.Formula;
+            val2 = cell2.Formula;
+            if (val1 == val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell formula mismatch in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Format
+            val1 = cell1.Style.Numberformat.Format;
+            val2 = cell2.Style.Numberformat.Format;
+            if (val1 == val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell number format mismatch in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Comment
+            val1 = cell1.Comment?.ToString() ?? "";
+            val2 = cell2.Comment?.ToString() ?? "";
+            if (val1 == val2)
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell comment mismatch in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            // Cell style
+            if (AreCellStylesDifferent(cell1, cell2, sheetName, r,c))
+            {
+                Console.WriteLine($"CompareWorkbooks: Cell style mismatch in sheet:{sheetName}, row:{r}, col:{c}, val1:{val1}, val2:{val2}");
+                return true;
+            }
+            return false;
+        }
+
+
 
 
         //-------------------------------------------------------------------------------------------------

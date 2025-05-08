@@ -42,7 +42,7 @@ namespace RAppsAPI.Services
                 Console.WriteLine("Request {0} waiting for lock...", req.ReqId);               
                 await sem.WaitAsync();
                 Console.WriteLine("Request {0} processing started!", req.ReqId);
-                // Db code - uses scope per task as RDBContext is not thread safe
+                // Db code - uses scope per task(transient) as RDBContext is not thread safe
                 // https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/#avoiding-dbcontext-threading-issues
                 using var scope = serviceProvider.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<RDBContext>();
@@ -53,12 +53,11 @@ namespace RAppsAPI.Services
                 var fileId = req.FileId;
                 if (!_dictWorkbooks.ContainsKey(fileId))
                 {
-                    // Workbook is not in dict,create it
-                    // TODO: Capture whole wb snap here & keep it around for later diffing
+                    // Workbook is not in dict,create it                    
                     var (retCode, message) = BuildWorkbookFromDB(req, dbContext);
                     if (retCode > 0)
                     {
-                        // TODO: Failed to create workbook, put the request in failed queue
+                        // TODO: Failed to create workbook, put the request in failed queue & log it
                         throw new Exception($"Failed to create workbook for request{req.ReqId}");
                     }
                 }
@@ -68,16 +67,14 @@ namespace RAppsAPI.Services
                 ApplyEditsToWorkbook(req, p, out diffSheets);
                 // Update the sheet jsons in the cache from wb only for the ones mentioned in 'read'
                 // section of edit req. Mark such rows as 'temp'. This enables reads to get updated
-                // data ASAP, even if its marked as 'temp' while the wb is being written to DB.
+                // data ASAP, even if its marked as 'temp', while the wb is being written to DB.
                 UpdateCacheFromWorkbook(req, serviceProvider, p);
                 // Update DB from wb - needs to be immediate as changes have to be saved.
-                // NOTE: Formatting etc changes have to applied directly from request as those
-                // wont be in the wb.
                 UpdateDBFromWorkbook(req, p, dbContext, diffSheets);
                 // Invalidate all cache entries for the wb as new wb now written to DB.
                 // ALSO UPDATE COMPLETED EDIT REQUEST LIST
-                // New entries made by read reqs will now fetch updated data from DB itself.
-                // So no more 'temp' rows.
+                // New entries made by read reqs will now fetch updated data from DB itself & update to cache.
+                // So no more 'temp' rows after this point.
                 InvalidateCacheEntriesForWorkbook();
                 Console.WriteLine("Request {0} processing complete", req.ReqId);
             }
@@ -118,7 +115,8 @@ namespace RAppsAPI.Services
         }
 
 
-        // Apply edits to in-mem workbook
+        // Apply edits to in-mem workbook.
+        // TODO: Some structural changes are left to edit.
         private (int, string) ApplyEditsToWorkbook(
             MPMEditRequestDTO req,
             ExcelPackage ep,
@@ -127,13 +125,17 @@ namespace RAppsAPI.Services
             diffSheets = new();
             try
             {
-                // TODO: Write edit request to DB first, state as 'Processing' with time
+                // TODO: Write edit request to DB first, state as 'Processing' with time.
                 // Set 'AppliedUpon' column to current file version.
                 
                 // Make copy of data in all sheets
                 // TODO: It may be faster to just write all sheets instead of wasting time
                 // making a copy and diffing.
-                //MPMWorkbookInMem memWb;
+                // TODO: ANother way, do not clone for every request. Start with the file in DB
+                // & update the   in-mem copy during calm times. Else do not update the copy, there will be 
+                // some extra data found different as edits go to db but not the in-mem copy.
+                // But the bulk of the data will be unchanged so it will be prevented from
+                // unnecessarily writing to DB.
                 ExcelPackage epCopy;
                 WBTools wbTools = new();
                 wbTools.CloneExcelPackage(ep, out epCopy);
@@ -242,7 +244,7 @@ namespace RAppsAPI.Services
 
                 //---------------------------------------
 
-                // Compare data with copy made earlier to get list of sheets & tables
+                // Compare data with in-mem copy to get list of sheets & tables
                 // to be written to DB. Sheets with user edited cells and tables which are edited
                 // by the user directly, always get copied to DB.
                 // For other cells, only value is diffed to determine if the sheet needs copying
@@ -318,8 +320,8 @@ namespace RAppsAPI.Services
             //TRUNCATE TABLE mpm.Cells
 
             // Update the DB, wb is still locked
-            WBTools wbTools = new();
-            wbTools.UpdateDBFromWorkbook(req.FileId, ep, diffSheets, dbContext);
+            //WBTools wbTools = new();
+            //wbTools.UpdateDBFromWorkbook(req.FileId, ep, diffSheets, dbContext);
 
             // On completion of writing diffs to DB, mark editReq as complete in cache entry for the file
             // for this user. This will inform frontend to pull data.
