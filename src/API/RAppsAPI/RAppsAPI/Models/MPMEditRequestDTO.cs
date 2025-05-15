@@ -13,7 +13,7 @@ namespace RAppsAPI.Models.MPM
         public int FileId { get; set; }
         public int LastModifiedTime { get; set; } // The last modification time the front saw
                                                   // This is to check if backend has changes after front last took changes
-        public int TestRunTime { get; set; } // Test code
+        public int TestRunTime { get; set; } // DEBUG code
         public List<MPMWorkbookEditsSheet> EditedSheets { get; set; }
         public List<MPMWorkbookEditsSheet> AddedSheets { get; set; } // Added sheets must be put here
         public List<string> RemovedSheets { get; set; } // Names of removed sheets

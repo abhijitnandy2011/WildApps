@@ -5,8 +5,8 @@
     {
         public int ReqId { get; set; } // unique Id set by client to track req
         public int FileId { get; set; }
-        public int TestRunTime { get; set; }
-        public List<string> CompletedEditRequests { get; set; } // List of completed edit reqs
+        public int TestRunTime { get; set; }  // DEBUG
+        public List<int>? CheckCompletedEditReqIds { get; set; } // App will chk if these edit reqs have completed before reading
         public List<MPMWorkbookReadsSheet> Sheets { get; set; }
     }
 
@@ -24,10 +24,16 @@
         public int bottom { get; set; }
     }
 
+
+    //---------------------------------------------
+    // Response
+
     public class MPMReadRequestResponseDTO
     {
         public int Code { get; set; } = -1;
         public string Message { get; set; } = string.Empty;
+        public Dictionary<int, int> CompletedEditRequests { get; set; } // TODO: List of completed edit reqs as dictionary, will it convert to map<int, int>?
+        public List<int> IncompleteEditRequests { get; set; }
         public int ReqId { get; set; } // unique Id set by client to track req
         public int FileId { get; set; }
         public int NumSheets { get; set; }  // Add other workbook level settings here

@@ -231,7 +231,20 @@ select * from mpm.Cells where
 (RowNum >=6 and RowNum <=10 and ColNum >=1 and ColNum<=5) 
 
 
+DECLARE @minRow int = 1
+DECLARE @minCol int = 1
+DECLARE @maxCol int = 5
+DECLARE @maxRow int = 8
+DECLARE @sheetNameParam varchar(20) = 'Mahindra'
+DECLARE @vFileIdParam int = 3
+DECLARE @activeStatusParam int = 2
 
+SELECT * FROM 
+mpm.Cells AS c INNER JOIN mpm.Sheets as s ON s.SheetID = c.SheetID AND s.VFileID = c.VFileID AND s.RStatus = c.RStatus
+WHERE 
+(c.RowNum >= @minRow AND c.RowNum <= @maxRow AND c.ColNum >= @minCol AND c.ColNum <= @maxCol) 
+AND s.Name=@sheetNameParam AND c.VFileID=@vFileIdParam AND c.RStatus=@activeStatusParam
+ORDER BY RowNum, ColNum
 
 
 

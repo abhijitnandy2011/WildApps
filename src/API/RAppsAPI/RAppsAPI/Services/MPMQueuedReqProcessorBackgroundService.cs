@@ -26,7 +26,7 @@ namespace RAppsAPI.Services
             Console.WriteLine("MPMQueuedReqProcessorBackgroundService starting...");
             while (!stoppingToken.IsCancellationRequested)
             {
-                MPMEditRequestDTO req = await _reqQueue.DequeueAsync(stoppingToken);
+                MPMBGQCommand qCmd = await _reqQueue.DequeueAsync(stoppingToken);
                 // Create a Task and start it
                 Task task1 = Task.Run(async () => {
                     if (stoppingToken.IsCancellationRequested)
@@ -35,10 +35,10 @@ namespace RAppsAPI.Services
                     }
                     try
                     {
-                        Console.WriteLine("Starting on request:{0}...", req.ReqId);                       
+                        //Console.WriteLine("Starting on request:{0}...", req.ReqId);                       
                         //_logger.LogInformation("Job completed successfully.");
-                        await _spreadsheetService.ProcessRequest(req, _serviceProvider);
-                        Console.WriteLine("Finished request:{0}", req.ReqId);
+                        await _spreadsheetService.ProcessRequest(qCmd, _serviceProvider);
+                        //Console.WriteLine("Finished request:{0}", req.ReqId);
                     }
                     catch (Exception ex)
                     {

@@ -4,8 +4,8 @@ namespace RAppsAPI.Services
 {
     public interface IMPMBackgroundRequestQueue
     {
-        void QueueBackgroundRequest(MPMEditRequestDTO editReq);
-        Task<MPMEditRequestDTO> DequeueAsync(CancellationToken cancellationToken);
+        void QueueBackgroundRequest(MPMBGQCommand editReq);
+        Task<MPMBGQCommand> DequeueAsync(CancellationToken cancellationToken);
 
     }
 }

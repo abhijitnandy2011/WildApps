@@ -14,6 +14,18 @@ namespace RAppsAPI.Data
         public const int MAX_SERIES_NUM_IN_RANGE = 10000; // to get all series, there cant be 10000 series in a range
 
         public const int MAX_COLS_READ_IN_SHEET = 500;
-        
+
+        public const int CACHE_BUILD_FROM_DB_NUM_TRIES = 3;
+
+        public static string GetCompletedEditRequestsCacheKey(int userId)
+        {
+            return $"MPM_EditReqList_{userId}";
+        }
+
+        public static string GetUserSheetCacheKey(int fileId, string sheetName)
+        {
+            return $"MPM_{fileId}_{sheetName}";
+        }
+
     }
 }

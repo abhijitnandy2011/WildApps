@@ -11,6 +11,7 @@ using System.ComponentModel;
 using static RAppsAPI.Data.DBConstants;
 using RAppsAPI.ExcelUtils;
 using OfficeOpenXml.Table;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 
 namespace RAppsAPI.Services
@@ -28,8 +29,8 @@ namespace RAppsAPI.Services
         }
 
 
-        // Immediately puts an entry in cache to indicate cache is being built from wb
-        // Time of startng cache build is also noted in the entry
+        // TODO: Immediately puts an entry in cache to indicate cache is being built from wb
+        // TODO: Time of starting cache build is also noted in the entry
         // Front can check it & return later or be blocked-till-timeout by sem if it tries to Build() again
         // The sem avoids the problem where 2 threads both miss the cache leading to both creating
         // the cache entry from DB unnecessarily. Only one is needed.
@@ -50,7 +51,10 @@ namespace RAppsAPI.Services
         // sheet. That allows for fine grained locking.
         // NOTE: Initially both read & write reqs should block indefn even if double work to ensure reqd rows are
         // built. Build() will not build entire sheet anyway so it should be fast.
-        public async Task<int> BuildFromDB(MPMReadRequestDTO req, int waitTimeout, 
+        public async Task<int> BuildFromDB(
+            MPMReadRequestDTO req, 
+            int userId, 
+            int waitTimeout, 
             IServiceProvider serviceProvider)
         {
             var semId = req.FileId;
@@ -65,7 +69,7 @@ namespace RAppsAPI.Services
             {
                 // Lock sem right away to prevent another request from reading the db & 
                 // possibly creating the same sheet entry in cache duplicating the work.
-                Console.WriteLine($"BuildFromDB: Req {req.ReqId} waiting for lock...");
+                Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Waiting for lock...");
                 var success = await sem.WaitAsync(waitTimeout);
                 if (!success)
                 {
@@ -73,7 +77,7 @@ namespace RAppsAPI.Services
                 }
                 // Check if rows already created in cache by a previous req
                 var cache = serviceProvider.GetRequiredService<IMemoryCache>();
-                var exists = CheckIfRowsAlreadyExistInCache(req, cache);
+                var exists = CheckIfRowsAlreadyExistInCache(req, userId, cache);
                 if (exists)
                 {
                     // We are done
@@ -82,7 +86,7 @@ namespace RAppsAPI.Services
                 // TODO: Can release sem as we wont access the cache right now
                 //sem.Release();
                 // No they dont, so read from db & put in cache
-                Console.WriteLine($"BuildFromDB: Building cache rows for request {req.ReqId}...");
+                Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Building cache rows for request...");
                 // Update cache from DB
                 // Refresh cache from db marking rows as from 'db' or front will keep trying
                 // for some time & then throw error assuming file change was not saved.
@@ -94,9 +98,13 @@ namespace RAppsAPI.Services
                 foreach (var sheet in req.Sheets)
                 {
                     var sheetName = sheet.SheetName;
+                    if (sheet.Rects.Count == 0)
+                    {
+                        Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
+                        continue;
+                    }                    
                     var sheetNameParam = new SqlParameter("sheetNameParam", sheetName);                    
-                    // Only 1 rect read for now in 1 request.
-                    var rect = sheet.Rects[0];
+                    var rect = sheet.Rects[0];          // Only 1 rect read for now in 1 request.
                     var minRow = new SqlParameter("minRow", rect.top);
                     var minCol = new SqlParameter("minCol", rect.left);
                     var maxCol = new SqlParameter("maxCol", rect.right);
@@ -105,19 +113,24 @@ namespace RAppsAPI.Services
                     // This query has not yet been possible to add conditions to, dynamically. SP may work.
                     //var query = $"SELECT * FROM mpm.Cells WHERE {conditions} ORDER BY RowNum, CellNum";
                     var listCellsResult = await dbContext.Database.SqlQuery<Cell>(
-                            @$"SELECT * FROM mpm.Cells WHERE 
-                            (RowNum >= {minRow} AND RowNum <= {maxRow} AND ColNum >= {minCol} AND ColNum <= {maxCol}) 
-                            AND Name={sheetNameParam} AND VFileID={vFileIdParam} AND RStatus={activeStatusParam}
+                        @$"SELECT c.* FROM 
+                              mpm.Cells AS c INNER JOIN mpm.Sheets as s ON s.SheetID = c.SheetID AND 
+                                s.VFileID = c.VFileID AND s.RStatus = c.RStatus
+                            WHERE 
+                              (c.RowNum >= {minRow} AND c.RowNum <= {maxRow} AND c.ColNum >= {minCol} AND c.ColNum <= {maxCol}) 
+                                AND s.Name={sheetNameParam} AND c.VFileID={vFileIdParam} AND c.RStatus={activeStatusParam}
                             ORDER BY RowNum, ColNum"
                         ).ToListAsync();
-                    // Copy from cells to cache entry struct
+                    // Setup new cache entry
                     var cacheEntry = new MPMSheetCacheEntry()
                     {
                         FileId = req.FileId,
                         SheetName = sheetName,
                         EmptyRows = new(),
-                        RowNumberVsRowEntry = new()
+                        RowNumberVsRowEntry = new(),
+                        Tables = new(),
                     };
+                    // Copy from cells to cache entry struct
                     var dict = cacheEntry.RowNumberVsRowEntry;
                     HashSet<int> setNonEmptyRows = new();
                     foreach (var cell in listCellsResult)
@@ -154,12 +167,39 @@ namespace RAppsAPI.Services
                         if(!setNonEmptyRows.Contains(r))
                             cacheEntry.EmptyRows.Add(r);
                     }
+                    // Now get the table info
+                    var listTablesResult = await dbContext.Database.SqlQuery<MTable>(
+                        @$"SELECT t.* FROM 
+                          mpm.MTables AS t INNER JOIN mpm.Sheets as s ON s.SheetID = t.SheetID AND
+                            s.VFileID = t.VFileID AND s.RStatus = t.RStatus
+                        WHERE s.Name={sheetNameParam} AND t.VFileID={vFileIdParam} AND t.RStatus={activeStatusParam}"
+                    ).ToListAsync();
+                    foreach(var table in listTablesResult)
+                    {
+                        cacheEntry.Tables.Add(new()
+                        {
+                            TableName = table.Name,
+                            NumRows = table.NumRows,
+                            NumCols = table.NumCols,
+                            StartRowNum = table.StartRowNum,
+                            StartColNum = table.StartColNum,
+                            EndRowNum = table.EndRowNum,
+                            EndColNum = table.EndColNum,
+                            TableType = table.TableType,
+                            Style = table.Style,
+                            HeaderRow = table.HeaderRow,
+                            TotalRow = table.TotalRow,
+                            BandedRows = table.BandedRows,
+                            BandedColumns = table.BandedColumns,
+                            FilterButton = table.FilterButton,
+                        });
+                    }
                     // Update cache, mutex is locked already
-                    var cacheKey = "MPM_" + req.FileId + "_" + sheetName;
+                    var cacheKey = Constants.GetUserSheetCacheKey(req.FileId, sheetName);
                     cache.Set(cacheKey, cacheEntry);
-                    Console.WriteLine($"BuildFromDB: Cache rows built for request:{req.ReqId}, file:{req.FileId}, sheet:{sheetName}");
+                    Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Cache rows built for request: file:{req.FileId}, sheet:{sheetName}");
                 } // foreach (var sheet ...
-                Console.WriteLine($"BuildFromDB: Cache rows completed for request {req.ReqId}");
+                Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Cache rows completed for request");
             }
             catch (Exception ex)
             {
@@ -173,30 +213,35 @@ namespace RAppsAPI.Services
             return 0;
         }
 
-        private bool CheckIfRowsAlreadyExistInCache(MPMReadRequestDTO req, IMemoryCache cache)
+        private bool CheckIfRowsAlreadyExistInCache(MPMReadRequestDTO req, int userId, IMemoryCache cache)
         {
             bool exist = true;
             foreach (var sheet in req.Sheets)
             {
                 var sheetName = sheet.SheetName;
-                var cacheKey = "MPM_" + req.FileId + "_" + sheetName;
+                if (sheet.Rects.Count == 0)
+                {
+                    Console.WriteLine($"CheckIfRowsAlreadyExistInCache:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
+                    continue;
+                }                
+                var cacheKey = Constants.GetUserSheetCacheKey(req.FileId, sheetName);
                 MPMSheetCacheEntry? entry;
                 var success = cache.TryGetValue(cacheKey, out entry);
                 if (!success || entry == null)
                 {
-                    Console.WriteLine($"CheckIfRowsAlreadyExistInCache: Cache key not found, req:{req.ReqId}, key:{cacheKey}");
+                    Console.WriteLine($"CheckIfRowsAlreadyExistInCache:({userId},{req.ReqId}):Cache key not found, key:{cacheKey}");
                     exist = false;
                     break;
                 }
                 // Sheet cache entry is there, check if the required rows are there
                 var dict = entry.RowNumberVsRowEntry;
                 HashSet<int> setEmptyRows = new HashSet<int>(entry.EmptyRows);
-                var rect = sheet.Rects[0];
+                var rect = sheet.Rects[0];    // Only 1 rect read for now in 1 request.
                 for (var r = rect.top; r <= rect.bottom; r++) 
                 {
                     if (!setEmptyRows.Contains(r) && !dict.ContainsKey(r))
                     {
-                        Console.WriteLine($"CheckIfRowsAlreadyExistInCache: Row not found in cache, req:{req.ReqId}, key:{cacheKey}, row:{r}");
+                        Console.WriteLine($"CheckIfRowsAlreadyExistInCache:({userId},{req.ReqId}):Row not found in cache, key:{cacheKey}, row:{r}");
                         exist = false;
                         break;
                     }
@@ -208,11 +253,13 @@ namespace RAppsAPI.Services
 
         // Called by bgservice after an edit to create rows directly from wb. This is fast.
         // This will also update the state of the Edit Req as 'Intermediate' after cache is set.
+        // The individual RowStates will be set to 'Temp' till they are refreshed from DB.
         // We get a lock on the cache right away as this function is called from another
         // thread(bgservice). This means a client request and a bg thread could be setting
         // the cache entry at the same time.
-        public async Task<int> BuildFromData(
+        public async Task<int> BuildFromExcelPackage(
             MPMReadRequestDTO req,
+            int userId,
             int waitTimeout,
             IServiceProvider serviceProvider,
             ExcelPackage ep)
@@ -228,7 +275,7 @@ namespace RAppsAPI.Services
             try
             {
                 // Lock sem right away
-                Console.WriteLine($"BuildFromData: Req {req.ReqId} waiting for lock...");
+                Console.WriteLine($"BuildFromExcelPackage:({userId},{req.ReqId}):waiting for lock...");
                 var success = await sem.WaitAsync(waitTimeout);
                 if (!success)
                 {
@@ -238,26 +285,31 @@ namespace RAppsAPI.Services
                 var cache = serviceProvider.GetRequiredService<IMemoryCache>();
                 if (cache == null)
                 {
-                    Console.WriteLine($"BuildFromData: Cache not obtained");
+                    Console.WriteLine($"BuildFromExcelPackage: Cache not obtained");
                     return 1;
                 }
                 foreach (var sheet in req.Sheets)
                 {
                     var sheetName = sheet.SheetName;
+                    if (sheet.Rects.Count == 0)
+                    {
+                        Console.WriteLine($"BuildFromExcelPackage:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
+                        continue;
+                    }                    
                     var epSheet = ep.Workbook.Worksheets[sheetName];
                     if (epSheet == null)
                     {
-                        Console.WriteLine($"BuildFromData: WARN: Read has requested sheet:{sheetName} but it was not found in the wb");
+                        Console.WriteLine($"BuildFromExcelPackage: WARN: Read has requested sheet:{sheetName} but it was not found in the wb");
                         continue;
                     }
-                    var cacheKey = "MPM_" + req.FileId + "_" + sheetName;
-                    MPMSheetCacheEntry? cacheEntry;
-                    success = cache.TryGetValue(cacheKey, out cacheEntry);
-                    if (!success || cacheEntry == null)
+                    var sheetCacheKey = Constants.GetUserSheetCacheKey(req.FileId, sheetName);
+                    MPMSheetCacheEntry? sheetCacheEntry;
+                    success = cache.TryGetValue(sheetCacheKey, out sheetCacheEntry);
+                    if (!success || sheetCacheEntry == null)
                     {
-                        Console.WriteLine($"BuildFromData: Cache key not found, req:{req.ReqId}, key:{cacheKey}");
+                        Console.WriteLine($"BuildFromExcelPackage: Cache key not found, req:{req.ReqId}, key:{sheetCacheKey}");
                         // No cache entry for this sheet yet, so create new one
-                        cacheEntry = new()
+                        sheetCacheEntry = new()
                         {
                             FileId = req.FileId,
                             SheetName = sheetName,
@@ -267,13 +319,13 @@ namespace RAppsAPI.Services
                         };                        
                     }
                     // Sheet cache entry is now there
-                    var dict = cacheEntry.RowNumberVsRowEntry;
+                    var dict = sheetCacheEntry.RowNumberVsRowEntry;
                     var rect = sheet.Rects[0];  // Only 1 rect supported at a time for now
-                    int startCol = epSheet.Dimension.Start.Column;
-                    int endCol = epSheet.Dimension.End.Column;
+                    int startCol = rect.left; // epSheet.Dimension.Start.Column;
+                    int endCol = rect.right;  //epSheet.Dimension.End.Column;
                     if (endCol > Constants.MAX_COLS_READ_IN_SHEET)
                     {
-                        Console.WriteLine($"BuildFromData: ERROR Really big number of columns{endCol}, rounding to {Constants.MAX_COLS_READ_IN_SHEET} columns");
+                        Console.WriteLine($"BuildFromExcelPackage: ERROR Really big number of columns{endCol}, rounding to {Constants.MAX_COLS_READ_IN_SHEET} columns");
                         endCol = Constants.MAX_COLS_READ_IN_SHEET;
                     }
                     // Add rows to sheet cache entry from epSheet
@@ -287,7 +339,7 @@ namespace RAppsAPI.Services
                         }
                         else
                         {
-                            Console.WriteLine($"BuildFromData: Row not found in cache, req:{req.ReqId}, key:{cacheKey}, row:{r}");
+                            Console.WriteLine($"BuildFromExcelPackage: Row not found in cache, req:{req.ReqId}, key:{sheetCacheKey}, row:{r}");
                             rowEntry = new()
                             {
                                 State = MPMCacheRowState.Temp,
@@ -327,7 +379,7 @@ namespace RAppsAPI.Services
                         {
                             // If no cells found, add to EmptyRows set to prevent
                             // controller from going hunting for the row in the DB.
-                            cacheEntry.EmptyRows.Add(r);
+                            sheetCacheEntry.EmptyRows.Add(r);
                         }
                         else
                         {
@@ -335,18 +387,42 @@ namespace RAppsAPI.Services
                             dict[r] = rowEntry;
                         }
                     }
+                    // Now get the table info
+                    var listTablesResult = epSheet.Tables;
+                    foreach (var epTable in listTablesResult)
+                    {
+                        var addr = epTable.Address;
+                        var numRows = addr.End.Row - addr.Start.Row + 1;
+                        var numCols = addr.End.Column - addr.Start.Column + 1;
+                        sheetCacheEntry.Tables.Add(new()
+                        {
+                            TableName = epTable.Name,
+                            NumRows = numRows,
+                            NumCols = numCols,
+                            StartRowNum = addr.Start.Row,
+                            StartColNum = addr.Start.Column,
+                            EndRowNum = addr.End.Row,
+                            EndColNum = addr.End.Column,
+                            TableType = (int)wbTools.GetSheetTableType(epTable, addr.Start.Row, addr.Start.Column, numRows, numCols),
+                            Style = epTable.TableStyle.ToString(),
+                            HeaderRow = epTable.ShowHeader,
+                            TotalRow = epTable.ShowTotal,
+                            BandedRows = epTable.ShowRowStripes,
+                            BandedColumns = epTable.ShowColumnStripes,
+                            FilterButton = epTable.ShowFilter,
+                        });
+                    }
                     // Set the cache entry
-                    cache.Set(cacheKey, cacheEntry);
-                    Console.WriteLine($"BuildFromData: Cache rows built for request:{req.ReqId}, file:{req.FileId}, sheet:{sheetName}");
+                    cache.Set(sheetCacheKey, sheetCacheEntry);
+                    Console.WriteLine($"BuildFromExcelPackage: Cache rows built for request:{req.ReqId}, file:{req.FileId}, sheet:{sheetName}");
                 } // foreach(sheet...
-                // Update request as completed
-                var userId = 1; // TODO: Put proper user id
-                var userEditsCacheKey = $"MPM_EditReqList_{userId}";
+                // Update request as completed               
+                var userEditsCacheKey = Constants.GetCompletedEditRequestsCacheKey(userId);
                 MPMUserEditReqsCacheEntry? userEditsCacheEntry;
                 success = cache.TryGetValue(userEditsCacheKey, out userEditsCacheEntry);
                 if (!success || userEditsCacheEntry == null)
                 {
-                    Console.WriteLine($"BuildFromData: Cache key not found, req:{req.ReqId}, key:{userEditsCacheKey}");
+                    Console.WriteLine($"BuildFromExcelPackage: Cache key not found, req:{req.ReqId}, key:{userEditsCacheKey}");
                     // No cache entry yet, so create new one
                     userEditsCacheEntry = new()
                     {
@@ -355,7 +431,7 @@ namespace RAppsAPI.Services
                 }
                 userEditsCacheEntry.ReqIdVsState[req.ReqId] = (int)MPMUserEditReqState.Intermediate;
                 cache.Set(userEditsCacheKey, userEditsCacheEntry);
-                Console.WriteLine($"BuildFromData: Cache rows completed for request {req.ReqId}");
+                Console.WriteLine($"BuildFromExcelPackage: Cache entry is INTERMEDIATE, cache rows in TEMP state for request {req.ReqId}");
             }
             catch (Exception ex)
             {
@@ -368,6 +444,8 @@ namespace RAppsAPI.Services
             }
             return 0;
         }
+
+        
     }
 
     

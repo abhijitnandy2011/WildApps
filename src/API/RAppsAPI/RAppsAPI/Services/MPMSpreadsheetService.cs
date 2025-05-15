@@ -32,51 +32,53 @@ namespace RAppsAPI.Services
         // before putting in Queue. Structural changes cannot be mixed with value changes.
         // Both must come as independent requests. If there is a lock, the request must not
         // be enqueued.
-        public async Task ProcessRequest(MPMEditRequestDTO req, IServiceProvider serviceProvider)
+        public async Task ProcessRequest(MPMBGQCommand qCmd, IServiceProvider serviceProvider)
         {
+            var userId = qCmd.UserId;
+            var req = qCmd.EditReq;
             var semId = req.FileId;
             // TODO: check if semp exists with this id in dict or exception!
             var sem = _dictSemaphores[semId];
             try
             {
-                Console.WriteLine("Request {0} waiting for lock...", req.ReqId);               
+                Console.WriteLine($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Waiting for lock...");               
                 await sem.WaitAsync();
-                Console.WriteLine("Request {0} processing started!", req.ReqId);
+                Console.WriteLine($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Request processing started!");
                 // Db code - uses scope per task(transient) as RDBContext is not thread safe
                 // https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/#avoiding-dbcontext-threading-issues
                 using var scope = serviceProvider.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<RDBContext>();
                 if (dbContext == null)
                 {                    
-                    throw new Exception("ProcessRequest: Failed to get dbContext even after using scope");
+                    throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to get dbContext even after using scope");
                 }
                 var fileId = req.FileId;
                 if (!_dictWorkbooks.ContainsKey(fileId))
                 {
                     // Workbook is not in dict,create it                    
-                    var (retCode, message) = BuildWorkbookFromDB(req, dbContext);
+                    var (retCode, message) = BuildWorkbookFromDB(req, userId, dbContext);
                     if (retCode > 0)
                     {
                         // TODO: Failed to create workbook, put the request in failed queue & log it
-                        throw new Exception($"Failed to create workbook for request{req.ReqId}");
+                        throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to build workbook from DB");
                     }
                 }
                 var p = _dictWorkbooks[req.FileId];
                 // Workbook is built, now apply the edits in the req & calc()
                 HashSet<string> diffSheets = new();
-                ApplyEditsToWorkbook(req, p, out diffSheets);
+                ApplyEditsToWorkbook(req, userId, p, out diffSheets);
                 // Update the sheet jsons in the cache from wb only for the ones mentioned in 'read'
                 // section of edit req. Mark such rows as 'temp'. This enables reads to get updated
                 // data ASAP, even if its marked as 'temp', while the wb is being written to DB.
-                UpdateCacheFromWorkbook(req, serviceProvider, p);
+                UpdateCacheFromWorkbook(req, userId, serviceProvider, p);
                 // Update DB from wb - needs to be immediate as changes have to be saved.
-                UpdateDBFromWorkbook(req, p, dbContext, diffSheets);
+                UpdateDBFromWorkbook(req, userId, p, dbContext, diffSheets);
                 // Invalidate all cache entries for the wb as new wb now written to DB.
                 // ALSO UPDATE COMPLETED EDIT REQUEST LIST
                 // New entries made by read reqs will now fetch updated data from DB itself & update to cache.
                 // So no more 'temp' rows after this point.
                 InvalidateCacheEntriesForWorkbook();
-                Console.WriteLine("Request {0} processing complete", req.ReqId);
+                Console.WriteLine($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Request processing complete");
             }
             catch (Exception ex)
             {
@@ -92,23 +94,26 @@ namespace RAppsAPI.Services
 
 
        
-        private (int, string) BuildWorkbookFromDB(MPMEditRequestDTO req, RDBContext dbContext)
+        private (int, string) BuildWorkbookFromDB(
+            MPMEditRequestDTO req, 
+            int userId, 
+            RDBContext dbContext)
         {           
             try
             {
                 var wbTools = new WBTools();
                 ExcelPackage p;
                 // TODO: Check return code
-                var resTuple = wbTools.BuildWorkbookFromDB(req, dbContext, out p);
+                var resTuple = wbTools.BuildWorkbookFromDB(req, userId, dbContext, out p);
                 var fileId = req.FileId;
                 _dictWorkbooks[fileId] = p;                
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Console.WriteLine($"BuildWorkbookFromDB:({req.ReqId},{userId}):{ex.Message}");
                 if (ex.InnerException != null)
                 {
-                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                    Console.WriteLine($"BuildWorkbookFromDB:({req.ReqId},{userId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
                 }
             }            
             return (0, "");
@@ -119,6 +124,7 @@ namespace RAppsAPI.Services
         // TODO: Some structural changes are left to edit.
         private (int, string) ApplyEditsToWorkbook(
             MPMEditRequestDTO req,
+            int userId,
             ExcelPackage ep,
             out HashSet<string> diffSheets)
         {
@@ -190,7 +196,7 @@ namespace RAppsAPI.Services
                         }
                     }
                     // TODO: Check if this works
-                    //ep.Save();
+                    wbTools.SaveExcelPackage(ep, "E:\\Code\\RApps\\output\\a1.xlsx");
 
                     // TODO: Edited tables  - may be independent op, does it affect formulas?
                     // Front will send table resizes after row add/remove.
@@ -274,7 +280,8 @@ namespace RAppsAPI.Services
         }
 
         async private Task<(int, string)> UpdateCacheFromWorkbook(
-            MPMEditRequestDTO req, 
+            MPMEditRequestDTO req,
+            int userId,
             IServiceProvider serviceProvider,
             ExcelPackage ep)
         {
@@ -288,10 +295,12 @@ namespace RAppsAPI.Services
                     TestRunTime = req.TestRunTime,
                     Sheets = req.ReadSheets,
                 };
-                // Build directly from wb for now - wb is still locked by mutex so no edits will happen
+                // Build cache directly from wb for now - wb is still locked by mutex so no edits will happen.
+                // This will also update the state of the Edit Req as 'Intermediate' after cache is set, so rows
+                // will be immediately available for reads.
                 // TODO: Tables need to be fully put in their sheet cache entries if updated,
                 // even if the edit.read section did not request it
-                int retCode = await buildCacheService.BuildFromData(readReq, Timeout.Infinite, serviceProvider, ep);
+                int retCode = await buildCacheService.BuildFromExcelPackage(readReq, userId, Timeout.Infinite, serviceProvider, ep);
             }
             catch (Exception ex)
             {
@@ -306,6 +315,7 @@ namespace RAppsAPI.Services
 
         private (int, string) UpdateDBFromWorkbook(
             MPMEditRequestDTO req,
+            int userId,
             ExcelPackage ep, 
             RDBContext dbContext,
             HashSet<string> diffSheets)

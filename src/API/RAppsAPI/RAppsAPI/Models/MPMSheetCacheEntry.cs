@@ -32,6 +32,20 @@ namespace RAppsAPI.Models.MPM
 
     public class MPMSheetCacheTableEntry
     {
+        public string TableName { get; set; }  // table name is unique
+        public int NumRows { get; set; }
+        public int NumCols { get; set; }
+        public int StartRowNum { get; set; }
+        public int StartColNum { get; set; }
+        public int EndRowNum { get; set; }
+        public int EndColNum { get; set; }
+        public int TableType { get; set; }   // Range/Series header/detail
+        public string Style { get; set; } = null!;
+        public bool HeaderRow { get; set; }
+        public bool TotalRow { get; set; }
+        public bool BandedRows { get; set; }
+        public bool BandedColumns { get; set; }
+        public bool FilterButton { get; set; }
     }
 
     //------ User edit requests list ------

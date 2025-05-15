@@ -1,6 +1,6 @@
 ﻿namespace RAppsAPI.Models.MPM
 {
-    internal class MPMSeriesHeaderInfoQueryResult
+    public class MPMSeriesHeaderInfoQueryResult
     {
         public int SeriesID { get; set; }
         public short SeriesNum { get; set; }

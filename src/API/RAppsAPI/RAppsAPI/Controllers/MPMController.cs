@@ -24,7 +24,12 @@ namespace RAppsAPI.Controllers
         [HttpPost("editFile")]
         public IActionResult editFile([FromBody] MPMEditRequestDTO editDTO)
         {
-            _reqQueue.QueueBackgroundRequest(editDTO);
+            MPMBGQCommand qCmd = new()
+            {
+                UserId = 0,
+                EditReq = editDTO,
+            };
+            _reqQueue.QueueBackgroundRequest(qCmd);
             return Ok("File edit request noted");
         }
 
@@ -34,7 +39,8 @@ namespace RAppsAPI.Controllers
         [HttpPost("readFile")]
         public async Task<IActionResult> readFile([FromBody] MPMReadRequestDTO readDTO)
         {
-            var response = await _mpmService.GetFileRows(readDTO);
+            var userId = 0;
+            var response = await _mpmService.GetFileRows(readDTO, userId);
             return Json(response);
         }
 

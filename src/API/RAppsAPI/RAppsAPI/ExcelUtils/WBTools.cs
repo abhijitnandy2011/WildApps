@@ -23,7 +23,8 @@ namespace RAppsAPI.ExcelUtils
         public WBTools() { }
 
         public (int, string) BuildWorkbookFromDB(
-            MPMEditRequestDTO req, 
+            MPMEditRequestDTO req,
+            int userId,
             RDBContext dbContext,
             out ExcelPackage ep)
         {
@@ -514,8 +515,9 @@ namespace RAppsAPI.ExcelUtils
             public int Row;
         }
 
-        enum TableTypes
+        public enum TableTypes
         {
+            UNKNOWN = -1,
             MASTER = 1,
             RANGE_HEADER = 2,
             RANGE_SERIES_HEADER = 3,
@@ -525,6 +527,7 @@ namespace RAppsAPI.ExcelUtils
         enum ParseRetCode
         {
             SUCCESS = 0,
+            INVALID_TABLE_DIMS,
             INVALID_RANGE_HEADER_DIMS,
             INVALID_RANGE_HEADER_TABLE_NAME,
             INVALID_RANGE_SERIES_HEADER_DIMS,
@@ -976,6 +979,12 @@ namespace RAppsAPI.ExcelUtils
             Dictionary<int, MTable> dictSeriesIdVsSeriesHdrMTable,
             List<Cell> efCells)
         {
+            if (efMTable.NumRows < 1 || efMTable.NumCols < 2)
+            {
+                string msg = $"ERROR: Invalid TABLE, Cannot get Table Name, num rows:{efMTable.NumRows}, num cols:{efMTable.NumCols}";
+                Console.WriteLine(msg);
+                return (-(int)ParseRetCode.INVALID_TABLE_DIMS, msg);
+            }
             var addr = table.Address;
             var startRow = addr.Start.Row;
             var endRow = addr.End.Row;
@@ -992,7 +1001,7 @@ namespace RAppsAPI.ExcelUtils
                 // Check dims
                 if (efMTable.NumRows < RANGE_HEADER_MIN_ROWS || efMTable.NumCols < RANGE_HEADER_MIN_COLS)
                 {
-                    string msg = $"Invalid RANGE HEADER, dimensions for {tableName}, rows:{efMTable.NumRows}, cols:{efMTable.NumCols}";
+                    string msg = $"ERROR: Invalid RANGE HEADER, dimensions for {tableName}, rows:{efMTable.NumRows}, cols:{efMTable.NumCols}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_RANGE_HEADER_DIMS, msg);
                 }
@@ -1000,7 +1009,7 @@ namespace RAppsAPI.ExcelUtils
                 var tokens = tableName.Split(';');
                 if (tokens.Length < 2)
                 {
-                    string msg = $"Invalid RANGE HEADER Table Name length:{tableName}";
+                    string msg = $"ERROR: Invalid RANGE HEADER Table Name length:{tableName}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_RANGE_HEADER_TABLE_NAME, msg);
                 }
@@ -1094,7 +1103,7 @@ namespace RAppsAPI.ExcelUtils
                         }
                         else
                         {
-                            string msg = $"Invalid Product Type/Range for table {tableName}, pt:{productTypeHeadValue}, r:{rangeHeadValue}";
+                            string msg = $"ERROR: Invalid Product Type/Range for table {tableName}, pt:{productTypeHeadValue}, r:{rangeHeadValue}";
                             Console.WriteLine(msg);
                             return (-(int)ParseRetCode.INVALID_PRODUCT_TYPE_OR_RANGE, msg);
                         }
@@ -1102,7 +1111,7 @@ namespace RAppsAPI.ExcelUtils
                     }
                     else
                     {
-                        string msg = $"Invalid Product/Product Type/Range for {tableName}, p: {productHeadValue}";
+                        string msg = $"ERROR: Invalid Product/Product Type/Range for {tableName}, p: {productHeadValue}";
                         Console.WriteLine(msg);
                         return (-(int)ParseRetCode.INVALID_PRODUCT, msg);
                     }
@@ -1115,20 +1124,20 @@ namespace RAppsAPI.ExcelUtils
                 var tokens = tableName.Split(';');
                 if (tokens.Length < 2)
                 {
-                    string msg = $"Invalid series header Table Name: {tableName}";
+                    string msg = $"ERROR: Invalid series header Table Name: {tableName}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_SERIES_HEADER_TABLE_NAME, msg);
                 }
                 var seriesName = tokens[1];
                 if (seriesName.Trim() == "")
                 {
-                    string msg = $"Invalid SERIES HEADER, no series name:{tableName}";
+                    string msg = $"ERROR: Invalid SERIES HEADER, no series name:{tableName}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_SERIES_HEADER_SERIES_NAME, msg);
                 }
                 if (efMTable.NumRows < RANGE_SERIES_HEADER_MIN_ROWS || efMTable.NumCols < RANGE_SERIES_HEADER_MIN_COLS)
                 {
-                    string msg = $"Invalid SERIES HEADER, dimensions for {tableName}, rows:{efMTable.NumRows}, cols:{efMTable.NumCols}";
+                    string msg = $"ERROR: Invalid SERIES HEADER, dimensions for {tableName}, rows:{efMTable.NumRows}, cols:{efMTable.NumCols}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_SERIES_HEADER_DIMS, msg);
                 }
@@ -1169,20 +1178,20 @@ namespace RAppsAPI.ExcelUtils
                 var tokens = tableName.Split(';');
                 if (tokens.Length < 2)
                 {
-                    string msg = $"Invalid SERIES DETAIL Table Name: {tableName}";
+                    string msg = $"ERROR: Invalid SERIES DETAIL Table Name: {tableName}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_SERIES_DETAIL_TABLE_NAME, msg);
                 }
                 var seriesName = tokens[1];
                 if (seriesName.Trim() == "")
                 {
-                    string msg = $"Invalid SERIES DETAIL table, no series name:{tableName}";
+                    string msg = $"ERROR: Invalid SERIES DETAIL table, no series name:{tableName}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_SERIES_DETAIL_SERIES_NAME, msg);
                 }
                 if (efMTable.NumRows < RANGE_SERIES_DETAIL_MIN_ROWS || efMTable.NumCols < RANGE_SERIES_DETAIL_MIN_COLS)
                 {
-                    string msg = $"Invalid SERIES DETAIL table, dimensions for {tableName}, rows:{efMTable.NumRows}, cols:{efMTable.NumCols}";
+                    string msg = $"ERROR: Invalid SERIES DETAIL table, dimensions for {tableName}, rows:{efMTable.NumRows}, cols:{efMTable.NumCols}";
                     Console.WriteLine(msg);
                     return (-(int)ParseRetCode.INVALID_SERIES_DETAIL_DIMS, msg);
                 }
@@ -1192,6 +1201,7 @@ namespace RAppsAPI.ExcelUtils
                     DBTable = efMTable,   // SeriesId in it will be updtd later 
                     Row = startRow,
                 });
+                // TODO: Need to add more series detail table types
                 efMTable.TableType = (int)TableTypes.RANGE_SERIES_DETAIL_MINMAX;
                 efMTable.Name = seriesName;
                 efMTable.RangeId = -1;    // For series detail table, the RangeId & SeriesId is unknown at this point
@@ -1266,8 +1276,56 @@ namespace RAppsAPI.ExcelUtils
             }
         }
 
+        // Parses the 'Table Name' field of an Excel table to get the table type
+        public TableTypes GetSheetTableType(ExcelTable epTable,
+            int startRow, int startCol, int numRows, int numCols)
+        {
+            if (numRows < 1 || numCols < 2)
+            {
+                string msg = $"ERROR: Invalid TABLE, Cannot get Table Name, num rows:{numRows}, num cols:{numCols}";
+                Console.WriteLine(msg);
+                return TableTypes.UNKNOWN;
+            }
+            var cells = epTable.WorkSheet.Cells;
+            string tableName = cells[startRow, startCol + 1].Value?.ToString() ?? "";
+            tableName = tableName.Trim();
+            // Process each table type
+            if (tableName.StartsWith(RANGE_HEADER_TABLE))
+            {
+                return TableTypes.RANGE_HEADER;
+            }
+            else if (tableName.StartsWith(RANGE_SERIES_TABLE))
+            {
+                return TableTypes.RANGE_SERIES_HEADER;
+            }
+            else if (tableName.StartsWith(RANGE_SERIES_DETAIL_TABLE))
+            {
+                // TODO: Need to add more series detail table types
+                return TableTypes.RANGE_SERIES_DETAIL_MINMAX;
+            }
+            else
+            {
+                return TableTypes.MASTER;
+            }
+        }
 
 
+        public void SaveExcelPackage(ExcelPackage ep, string path)
+        {
+            var xlFile = GetCleanFileInfo(path);
+            ep.SaveAs(xlFile);
+        }
+
+
+        public FileInfo GetCleanFileInfo(string file)
+        {
+            var fi = new FileInfo("" + Path.DirectorySeparatorChar + file);
+            if (fi.Exists)
+            {
+                fi.Delete();  // ensures we create a new workbook
+            }
+            return fi;
+        }
 
 
 

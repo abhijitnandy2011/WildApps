@@ -11,20 +11,19 @@ GET {{RAppsAPI_HostAddress}}/api/mpm/mfile/3/range/1
 
 POST {{RAppsAPI_HostAddress}}/api/mpm/readFile
 Content-Type: application/json
-
 {
   "reqId": 1,
   "fileId": 3,
   "testRunTime": 0,
   "sheets": [
     {
-      "sheetId": 1,
+      "sheetName": "Mahindra",
       "rects": [
         {
           "top": 1,
           "left": 1,
           "right": 5,
-          "bottom": 8
+          "bottom": 11
         }
       ]
     }

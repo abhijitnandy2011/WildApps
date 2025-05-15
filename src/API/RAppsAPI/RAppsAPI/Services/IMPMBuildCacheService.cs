@@ -8,11 +8,13 @@ namespace RAppsAPI.Services
     public interface IMPMBuildCacheService
     {
         public Task<int> BuildFromDB(
-            MPMReadRequestDTO editReq, 
+            MPMReadRequestDTO editReq,
+            int userId,
             int waitTimeout, 
             IServiceProvider serviceProvider);
-        public Task<int> BuildFromData(
+        public Task<int> BuildFromExcelPackage(
             MPMReadRequestDTO editReq,
+            int userId,
             int waitTimeout,
             IServiceProvider serviceProvider,
             ExcelPackage p);

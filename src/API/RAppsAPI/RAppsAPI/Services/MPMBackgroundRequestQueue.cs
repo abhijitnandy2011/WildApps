@@ -6,21 +6,21 @@ namespace RAppsAPI.Services
     public class MPMBackgroundRequestQueue: IMPMBackgroundRequestQueue
     {
         private readonly SemaphoreSlim _signal = new(0);
-        private readonly ConcurrentQueue<MPMEditRequestDTO> _reqQueue = new();
+        private readonly ConcurrentQueue<MPMBGQCommand> _reqQueue = new();
 
-        public void QueueBackgroundRequest(MPMEditRequestDTO editReq)
+        public void QueueBackgroundRequest(MPMBGQCommand qCmd)
         {
-            if (editReq == null) throw new ArgumentNullException(nameof(editReq));
-            _reqQueue.Enqueue(editReq);
+            if (qCmd == null) throw new ArgumentNullException(nameof(qCmd));
+            _reqQueue.Enqueue(qCmd);
             _signal.Release();
         }
 
 
-        public async Task<MPMEditRequestDTO> DequeueAsync(CancellationToken cancellationToken)
+        public async Task<MPMBGQCommand> DequeueAsync(CancellationToken cancellationToken)
         {
             await _signal.WaitAsync(cancellationToken);
-            _reqQueue.TryDequeue(out var editReq);            
-            return editReq;
+            _reqQueue.TryDequeue(out var qCmd);            
+            return qCmd;
         }
     }
 }
