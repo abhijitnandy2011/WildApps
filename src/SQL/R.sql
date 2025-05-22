@@ -246,7 +246,14 @@ WHERE
 AND s.Name=@sheetNameParam AND c.VFileID=@vFileIdParam AND c.RStatus=@activeStatusParam
 ORDER BY RowNum, ColNum
 
+SELECT * from mpm.MTables
 
+SELECT MAX(ID) FROM dbo.VUsers
+
+-- DELETE FROM dbo.VUsers WHERE ID = 0
+
+-- Activate user
+UPDATE dbo.VUsers SET RStatus = dbo.CONST('RSTATUS_ACTIVE') WHERE ID = 102
 
 
 

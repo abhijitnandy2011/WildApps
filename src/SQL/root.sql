@@ -5,6 +5,7 @@
 -- User defined types
 
 CREATE TYPE dbo.UDT_ID FROM int NOT NULL;
+CREATE TYPE dbo.UDT_ID_BIG FROM bigint NOT NULL;
 
 CREATE TYPE dbo.UDT_DateTime FROM datetime NOT NULL;
 CREATE TYPE dbo.UDT_DateTime_Opt FROM datetime NULL;
@@ -243,7 +244,7 @@ CREATE TABLE SystemUserApp(
     RStatus
 )
 
--- No need for 2 tables, this has the rel between Syste, Folders & File
+-- No need for 2 tables, this has the rel between System, Folders & File
 -- Which System has which folder & file etc.
 CREATE TABLE SystemFolderFile(
     ID,
