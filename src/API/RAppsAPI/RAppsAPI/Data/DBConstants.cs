@@ -2,6 +2,8 @@
 
 namespace RAppsAPI.Data
 {
+    // Some DB values which do not often change are hardcoded here to avoid DB lookups
+    // for simple things. Change this policy as needed.
     public class DBConstants
     {
         public enum RStatus
@@ -23,6 +25,7 @@ namespace RAppsAPI.Data
         // User IDs
         public static int SYSTEM_USER_ID = 1;
         public static int ADMIN_USER_ID = 2;
+        public static int MIN_NON_ADMIN_ID = 101;
 
         public enum FolderObjectType
         {

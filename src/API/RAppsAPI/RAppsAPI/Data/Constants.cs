@@ -22,7 +22,12 @@ namespace RAppsAPI.Data
             return $"MPM_EditReqList_{userId}";
         }
 
-        public static string GetUserSheetCacheKey(int fileId, string sheetName)
+        public static string GetFailedEditRequestsCacheKey(int userId)
+        {
+            return $"MPM_FailedEditReqList_{userId}";
+        }        
+
+        public static string GetWorkbookSheetCacheKey(int fileId, string sheetName)
         {
             return $"MPM_{fileId}_{sheetName}";
         }

@@ -12,7 +12,8 @@
 
     public class MPMWorkbookReadsSheet
     {
-        public string SheetName { get; set; } 
+        public string SheetName { get; set; }
+        public bool IncludeTableInfo { get; set; }
         public List<MPMWorkbookReadsRect> Rects { get; set; }
     }
 
@@ -34,10 +35,19 @@
         public string Message { get; set; } = string.Empty;
         public Dictionary<int, int> CompletedEditRequests { get; set; } // TODO: List of completed edit reqs as dictionary, will it convert to map<int, int>?
         public List<int> IncompleteEditRequests { get; set; }
+        public Dictionary<int, MPMFailedEditInfo> FailedEditRequests { get; set; }
         public int ReqId { get; set; } // unique Id set by client to track req
         public int FileId { get; set; }
         public int NumSheets { get; set; }  // Add other workbook level settings here
         public List<MPMReadResponseSheet> Sheets { get; set; }        
+    }
+
+    public class MPMFailedEditInfo
+    {
+        public int ReqId { get; set; } // unique Id set by client to track req
+        public int Code { get; set; } = -1;
+        public string Message { get; set; } = string.Empty;        
+        public int FileId { get; set; }
     }
 
     public class MPMReadResponseSheet

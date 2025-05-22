@@ -122,6 +122,11 @@ namespace RAppsAPI.Services
 
         // Apply edits to in-mem workbook.
         // TODO: Some structural changes are left to edit.
+        // Structural changes must block and cannot be mixed with other operations
+        // as their order matters. They need to be confirmed complete by blocking the
+        // app before the next edit.
+        // TODO: Structural changes are not checked if they were requested independently but
+        // should be.
         private (int, string) ApplyEditsToWorkbook(
             MPMEditRequestDTO req,
             int userId,
@@ -147,12 +152,37 @@ namespace RAppsAPI.Services
                 wbTools.CloneExcelPackage(ep, out epCopy);
 
                 // Apply the changes------------------------
+                // TODO: Confirm if there are any structural changes and that they do not 
+                // include any other changes - if they so then refuse to do the edit
+
                 // Worbook level changes - STRUCTURAL CHANGE - should be independent operation
 
-                // Added sheets - STRUCTURAL CHANGE - should be independent operation
+                // Renamed sheets - Structural
+                foreach (var editedSheet in req.EditedSheets)
+                {
+                    if (editedSheet.RenameSheet)
+                    {
+                        // TODO
+                        //ep.Workbook.Worksheets.Move
+                    }
+                }
 
-                var editedSheets = req.EditedSheets;
-                foreach (var editedSheet in editedSheets)
+                // Added sheets - STRUCTURAL CHANGE
+                foreach (var addedSheet in req.AddedSheets)
+                {
+                    ep.Workbook.Worksheets.Add(addedSheet.SheetName);
+                    // TODO: Add in correct position
+                }
+
+                // Removed sheets - STRUCTURAL CHANGE
+                foreach (var removedSheet in req.RemovedSheets)
+                {
+                    // TODO: Any sheet dependencies to be checked & warned to user before deletion?
+                    ep.Workbook.Worksheets.Delete(removedSheet);
+                }
+
+                // Edited sheets
+                foreach (var editedSheet in req.EditedSheets)
                 {
                     var sheet = ep.Workbook.Worksheets[editedSheet.SheetName];
                     if (sheet == null)
@@ -171,13 +201,15 @@ namespace RAppsAPI.Services
                     // editreqs not being sent or queued in the correct order very easily. So the front end
                     // must send a struct change & wait till its confirmed, blocking the UI, before sending another.
 
-                    // Added Rows - should be independent operation
-
-                    // Removed Rows  - should be independent operation
-
                     // Added columns  - should be independent operation
 
                     // Removed columns  - should be independent operation
+
+                    // TODO - Edited column widths
+
+                    // Added Rows - should be independent operation
+
+                    // Removed Rows  - should be independent operation
 
                     // Edited Rows                
                     // TODO: Check if edited rows actually get applied
@@ -196,7 +228,7 @@ namespace RAppsAPI.Services
                         }
                     }
                     // TODO: Check if this works
-                    wbTools.SaveExcelPackage(ep, "E:\\Code\\RApps\\output\\a1.xlsx");
+                    wbTools.SaveExcelPackage(ep, "E:\\Code\\RApps\\output\\a1.xlsx");                    
 
                     // TODO: Edited tables  - may be independent op, does it affect formulas?
                     // Front will send table resizes after row add/remove.

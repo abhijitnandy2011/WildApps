@@ -33,3 +33,9 @@ Content-Type: application/json
 
 
 ###
+
+@username=test
+@password=pwd
+POST {{RAppsAPI_HostAddress}}/api/auth/login?username={{username}}&password={{password}}
+
+###

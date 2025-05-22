@@ -1,7 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
-using RAppsAPI.Data;
-using RAppsAPI.Models;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using RAppsAPI.Models.MPM;
 using RAppsAPI.Services;
 
@@ -21,6 +19,7 @@ namespace RAppsAPI.Controllers
             _reqQueue = queue;            
         }
 
+        //[Authorize]
         [HttpPost("editFile")]
         public IActionResult editFile([FromBody] MPMEditRequestDTO editDTO)
         {
@@ -36,6 +35,7 @@ namespace RAppsAPI.Controllers
 
         // Return series detail data
         // TODO: Maybe merge this with GetRangeInfo() to get all data in demand 
+        //[Authorize]
         [HttpPost("readFile")]
         public async Task<IActionResult> readFile([FromBody] MPMReadRequestDTO readDTO)
         {
@@ -46,6 +46,7 @@ namespace RAppsAPI.Controllers
 
 
         // Returns all product, product types and ranges as nested json
+        [Authorize]
         [HttpGet("mfile/{fileId}")]
         public async Task<IActionResult> GetProductInfo(int fileId)
         {

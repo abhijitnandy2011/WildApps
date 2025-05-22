@@ -195,7 +195,7 @@ namespace RAppsAPI.Services
                         });
                     }
                     // Update cache, mutex is locked already
-                    var cacheKey = Constants.GetUserSheetCacheKey(req.FileId, sheetName);
+                    var cacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
                     cache.Set(cacheKey, cacheEntry);
                     Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Cache rows built for request: file:{req.FileId}, sheet:{sheetName}");
                 } // foreach (var sheet ...
@@ -224,7 +224,7 @@ namespace RAppsAPI.Services
                     Console.WriteLine($"CheckIfRowsAlreadyExistInCache:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
                     continue;
                 }                
-                var cacheKey = Constants.GetUserSheetCacheKey(req.FileId, sheetName);
+                var cacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
                 MPMSheetCacheEntry? entry;
                 var success = cache.TryGetValue(cacheKey, out entry);
                 if (!success || entry == null)
@@ -288,21 +288,17 @@ namespace RAppsAPI.Services
                     Console.WriteLine($"BuildFromExcelPackage: Cache not obtained");
                     return 1;
                 }
-                foreach (var sheet in req.Sheets)
+                foreach (var reqSheet in req.Sheets)
                 {
-                    var sheetName = sheet.SheetName;
-                    if (sheet.Rects.Count == 0)
-                    {
-                        Console.WriteLine($"BuildFromExcelPackage:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
-                        continue;
-                    }                    
+                    var sheetName = reqSheet.SheetName;
+                    
                     var epSheet = ep.Workbook.Worksheets[sheetName];
                     if (epSheet == null)
                     {
                         Console.WriteLine($"BuildFromExcelPackage: WARN: Read has requested sheet:{sheetName} but it was not found in the wb");
                         continue;
                     }
-                    var sheetCacheKey = Constants.GetUserSheetCacheKey(req.FileId, sheetName);
+                    var sheetCacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
                     MPMSheetCacheEntry? sheetCacheEntry;
                     success = cache.TryGetValue(sheetCacheKey, out sheetCacheEntry);
                     if (!success || sheetCacheEntry == null)
@@ -316,101 +312,113 @@ namespace RAppsAPI.Services
                             EmptyRows = new(),
                             RowNumberVsRowEntry = new(),
                             Tables = new(),
-                        };                        
+                        };
                     }
-                    // Sheet cache entry is now there
-                    var dict = sheetCacheEntry.RowNumberVsRowEntry;
-                    var rect = sheet.Rects[0];  // Only 1 rect supported at a time for now
-                    int startCol = rect.left; // epSheet.Dimension.Start.Column;
-                    int endCol = rect.right;  //epSheet.Dimension.End.Column;
-                    if (endCol > Constants.MAX_COLS_READ_IN_SHEET)
+                    // Get sheet info if Rects in the sheet have been provided in the req
+                    if (reqSheet.Rects.Count == 0)
                     {
-                        Console.WriteLine($"BuildFromExcelPackage: ERROR Really big number of columns{endCol}, rounding to {Constants.MAX_COLS_READ_IN_SHEET} columns");
-                        endCol = Constants.MAX_COLS_READ_IN_SHEET;
+                        Console.WriteLine($"BuildFromExcelPackage:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
+                        continue;
                     }
-                    // Add rows to sheet cache entry from epSheet
-                    for (var r = rect.top; r <= rect.bottom; r++)
+                    else
                     {
-                        MPMSheetCacheRowEntry rowEntry;
-                        if (dict.ContainsKey(r))
+                        // Sheet cache entry is now there
+                        var dict = sheetCacheEntry.RowNumberVsRowEntry;
+                        var rect = reqSheet.Rects[0];  // Only 1 rect supported at a time for now
+                        int startCol = rect.left; // epSheet.Dimension.Start.Column;
+                        int endCol = rect.right;  //epSheet.Dimension.End.Column;
+                        if (endCol > Constants.MAX_COLS_READ_IN_SHEET)
                         {
-                            rowEntry = dict[r];
-                            rowEntry.Row.Cells.Clear(); // All cells will be added again
+                            Console.WriteLine($"BuildFromExcelPackage: ERROR Really big number of columns{endCol}, rounding to {Constants.MAX_COLS_READ_IN_SHEET} columns");
+                            endCol = Constants.MAX_COLS_READ_IN_SHEET;
                         }
-                        else
+                        // Add rows to sheet cache entry from epSheet
+                        for (var r = rect.top; r <= rect.bottom; r++)
                         {
-                            Console.WriteLine($"BuildFromExcelPackage: Row not found in cache, req:{req.ReqId}, key:{sheetCacheKey}, row:{r}");
-                            rowEntry = new()
+                            MPMSheetCacheRowEntry rowEntry;
+                            if (dict.ContainsKey(r))
                             {
-                                State = MPMCacheRowState.Temp,
-                                Row = new()
+                                rowEntry = dict[r];
+                                rowEntry.Row.Cells.Clear(); // All cells will be added again
+                            }
+                            else
+                            {
+                                Console.WriteLine($"BuildFromExcelPackage: Row not found in cache, req:{req.ReqId}, key:{sheetCacheKey}, row:{r}");
+                                rowEntry = new()
                                 {
-                                    RN = r,
-                                    Cells = new()
+                                    State = MPMCacheRowState.Temp,
+                                    Row = new()
+                                    {
+                                        RN = r,
+                                        Cells = new()
+                                    }
+                                };
+                            }
+                            // Add cells to sheet cache entry for row from epSheet
+                            for (var c = startCol; c <= endCol; ++c)
+                            {
+                                var cell = epSheet.Cells[r, c];
+                                string cellValue, cellFormula, cellComment, cellFormat;
+                                MPMCellStyle cellStyle;
+                                wbTools.GetCellProperties(cell, out cellValue, out cellFormula, out cellComment, out cellFormat, out cellStyle);
+                                if (wbTools.IsCellEmpty(cellValue, cellFormula, cellComment, cellFormat, cellStyle))   // TODO: The style may need more detailed checks
+                                {
+                                    // Skip cell as its values are empty
+                                    // TODO: Style and formatting needs to be checked too
+                                    continue;
                                 }
-                            };
+                                var styleJson = wbTools.GetCellStyleAsJSONString(cellStyle);
+                                rowEntry.Row.Cells.Add(new()
+                                {
+                                    CN = c,
+                                    Value = cellValue,
+                                    Formula = cellFormula,
+                                    Format = cellFormat,
+                                    Style = styleJson,
+                                    Comment = cellComment,
+                                });
+                            }
+                            // All cells added
+                            if (rowEntry.Row.Cells.Count == 0)
+                            {
+                                // If no cells found, add to EmptyRows set to prevent
+                                // controller from going hunting for the row in the DB.
+                                sheetCacheEntry.EmptyRows.Add(r);
+                            }
+                            else
+                            {
+                                // Cells found, so add to rows dict
+                                dict[r] = rowEntry;
+                            }
                         }
-                        // Add cells to sheet cache entry for row from epSheet
-                        for (var c = startCol; c <= endCol; ++c)
+                    }
+                    // Now get the table info if asked
+                    if (reqSheet.IncludeTableInfo)
+                    {
+                        var listTablesResult = epSheet.Tables;
+                        foreach (var epTable in listTablesResult)
                         {
-                            var cell = epSheet.Cells[r, c];
-                            string cellValue, cellFormula, cellComment, cellFormat;
-                            MPMCellStyle cellStyle;
-                            wbTools.GetCellProperties(cell, out cellValue, out cellFormula, out cellComment, out cellFormat, out cellStyle);                           
-                            if (wbTools.IsCellEmpty(cellValue, cellFormula, cellComment, cellFormat, cellStyle))   // TODO: The style may need more detailed checks
+                            var addr = epTable.Address;
+                            var numRows = addr.End.Row - addr.Start.Row + 1;
+                            var numCols = addr.End.Column - addr.Start.Column + 1;
+                            sheetCacheEntry.Tables.Add(new()
                             {
-                                // Skip cell as its values are empty
-                                // TODO: Style and formatting needs to be checked too
-                                continue;
-                            }                            
-                            var styleJson = wbTools.GetCellStyleAsJSONString(cellStyle);
-                            rowEntry.Row.Cells.Add(new()
-                            {
-                                CN = c,
-                                Value = cellValue,
-                                Formula = cellFormula,
-                                Format = cellFormat,
-                                Style = styleJson,
-                                Comment = cellComment,
+                                TableName = epTable.Name,
+                                NumRows = numRows,
+                                NumCols = numCols,
+                                StartRowNum = addr.Start.Row,
+                                StartColNum = addr.Start.Column,
+                                EndRowNum = addr.End.Row,
+                                EndColNum = addr.End.Column,
+                                TableType = (int)wbTools.GetSheetTableType(epTable, addr.Start.Row, addr.Start.Column, numRows, numCols),
+                                Style = epTable.TableStyle.ToString(),
+                                HeaderRow = epTable.ShowHeader,
+                                TotalRow = epTable.ShowTotal,
+                                BandedRows = epTable.ShowRowStripes,
+                                BandedColumns = epTable.ShowColumnStripes,
+                                FilterButton = epTable.ShowFilter,
                             });
                         }
-                        // All cells added
-                        if (rowEntry.Row.Cells.Count == 0)
-                        {
-                            // If no cells found, add to EmptyRows set to prevent
-                            // controller from going hunting for the row in the DB.
-                            sheetCacheEntry.EmptyRows.Add(r);
-                        }
-                        else
-                        {
-                            // Cells found, so add to rows dict
-                            dict[r] = rowEntry;
-                        }
-                    }
-                    // Now get the table info
-                    var listTablesResult = epSheet.Tables;
-                    foreach (var epTable in listTablesResult)
-                    {
-                        var addr = epTable.Address;
-                        var numRows = addr.End.Row - addr.Start.Row + 1;
-                        var numCols = addr.End.Column - addr.Start.Column + 1;
-                        sheetCacheEntry.Tables.Add(new()
-                        {
-                            TableName = epTable.Name,
-                            NumRows = numRows,
-                            NumCols = numCols,
-                            StartRowNum = addr.Start.Row,
-                            StartColNum = addr.Start.Column,
-                            EndRowNum = addr.End.Row,
-                            EndColNum = addr.End.Column,
-                            TableType = (int)wbTools.GetSheetTableType(epTable, addr.Start.Row, addr.Start.Column, numRows, numCols),
-                            Style = epTable.TableStyle.ToString(),
-                            HeaderRow = epTable.ShowHeader,
-                            TotalRow = epTable.ShowTotal,
-                            BandedRows = epTable.ShowRowStripes,
-                            BandedColumns = epTable.ShowColumnStripes,
-                            FilterButton = epTable.ShowFilter,
-                        });
                     }
                     // Set the cache entry
                     cache.Set(sheetCacheKey, sheetCacheEntry);
@@ -431,6 +439,10 @@ namespace RAppsAPI.Services
                 }
                 userEditsCacheEntry.ReqIdVsState[req.ReqId] = (int)MPMUserEditReqState.Intermediate;
                 cache.Set(userEditsCacheKey, userEditsCacheEntry);
+                // TODO: Update failed edit requests for user in cache
+                var userFailedEditsCacheKey = Constants.GetFailedEditRequestsCacheKey(userId);
+                // TODO: Failed req pass to this function and add to list in cache, so read can 
+                // send to user
                 Console.WriteLine($"BuildFromExcelPackage: Cache entry is INTERMEDIATE, cache rows in TEMP state for request {req.ReqId}");
             }
             catch (Exception ex)

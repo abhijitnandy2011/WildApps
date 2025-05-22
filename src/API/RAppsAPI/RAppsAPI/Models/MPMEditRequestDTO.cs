@@ -24,12 +24,13 @@ namespace RAppsAPI.Models.MPM
     {
         public string SheetName { get; set; }  // sheet name is unique
         public string NewSheetName { get; set; }  // If sheet was renamed
+        public bool RenameSheet { get; set; } // Set this to rename the sheet with NewSheetName
         public List<MPMWorkbookEditsRow> EditedRows { get; set; } // edited rows
         public List<int> AddedRows { get; set; }
         public List<int> RemovedRows { get; set; }
         public List<int> AddedColumns { get; set; }  // Column add/removes affect all rows, so must be applied first
         public List<int> RemovedColumns { get; set; }
-        public List<int> ColumnWidths { get; set; }  // User may change column width
+        public List<int> ColumnWidths { get; set; }  // User may change column width        
         public List<MPMWorkbookEditsTable> EditedTables { get; set; }  // edited tables - only resizes allowed
         public List<MPMWorkbookEditsTable> AddedTables { get; set; } // Added tables must be put here
         public List<string> RemovedTables { get; set; } // Names of removed tables
