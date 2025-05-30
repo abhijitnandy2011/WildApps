@@ -10,6 +10,8 @@
 
 CREATE TYPE dbo.UDT_ID FROM int NOT NULL;
 CREATE TYPE dbo.UDT_ID_Opt FROM int NULL;
+CREATE TYPE dbo.UDT_ID_BIG FROM bigint NOT NULL;   -- TODO
+CREATE TYPE dbo.UDT_ID_BIG_Opt FROM bigint NULL;   -- TODO
 
 CREATE TYPE dbo.UDT_DateTime FROM datetime NOT NULL;
 CREATE TYPE dbo.UDT_DateTime_Opt FROM datetime NULL;
@@ -47,6 +49,7 @@ CREATE TYPE dbo.UDT_Bool FROM bit NOT NULL;
 CREATE TYPE dbo.UDT_Path FROM [nvarchar](800) NOT NULL;
 
 CREATE TYPE dbo.UDT_LogDescription FROM [nvarchar](max) NOT NULL;
+CREATE TYPE dbo.UDT_LogDescription_Opt FROM [nvarchar](max) NULL;  -- TODO
 CREATE TYPE dbo.UDT_Description FROM [nvarchar](max) NOT NULL;
 CREATE TYPE dbo.UDT_Description_Small_Opt FROM [nvarchar](800) NULL;
 
