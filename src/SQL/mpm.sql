@@ -1,3 +1,21 @@
+-- MPM related tables
+
+
+-- TODO
+-- Logging for operations done in DB e.g. in SPs
+DROP TABLE mpm.DBLogs;
+CREATE TABLE mpm.DBLogs(    
+	ID            UDT_ID_BIG IDENTITY(1,1),    
+	Module        UDT_Name,     
+    Code          UDT_ID,
+	Msg           UDT_Name_Med,      
+	Description   UDT_LogDescription_Opt,  -- details with stack trace   
+	ID1           UDT_ID_BIG_Opt,    
+	ID2           UDT_ID_BIG_Opt, 
+    CreatedBy     UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate   UDT_DateTime,
+	CONSTRAINT PK_MPM_DBLogs PRIMARY KEY (ID)	
+)
 
 
 -- TODO
@@ -19,8 +37,8 @@ CREATE TABLE mpm.Workbooks(
 
 
 -- TODO
-DROP TABLE mpm.EventLogs;
-CREATE TABLE mpm.EventLogs(
+DROP TABLE mpm.WBEventLogs;
+CREATE TABLE mpm.WBEventLogs(
     ID               UDT_ID_BIG IDENTITY(1,1),   -- useful for knowing event order, imp for edits order when restoring
     VFileID          UDT_ID,    
     EventTypeID      UDT_ID,
@@ -31,13 +49,13 @@ CREATE TABLE mpm.EventLogs(
     LastUpdatedBy    UDT_Number_Int_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus,
-    CONSTRAINT PK_MPM_EventLogID PRIMARY KEY (ID),
+    CONSTRAINT PK_MPM_WBEventLogID PRIMARY KEY (ID),
 );
 
 
 -- TODO
-DROP TABLE mpm.EventTypes;
-CREATE TABLE mpm.EventTypes(
+DROP TABLE mpm.WBEventTypes;
+CREATE TABLE mpm.WBEventTypes(
     ID               UDT_ID,
     Name             UDT_Name,
     CreatedBy        UDT_ID,
@@ -45,7 +63,7 @@ CREATE TABLE mpm.EventTypes(
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
     RStatus           UDT_RowStatus,
-    CONSTRAINT PK_MPM_EventTypeID PRIMARY KEY (ID),
+    CONSTRAINT PK_MPM_WBEventTypeID PRIMARY KEY (ID),
 );
 
 
@@ -55,9 +73,10 @@ DROP TABLE mpm.Edits;
 CREATE TABLE mpm.Edits(
     ID               UDT_ID_BIG IDENTITY(1,1),
     VFileID          UDT_ID,
-	BackupID         UDT_ID, 
+	BackupID         UDT_ID,
 	Json             nvarchar(MAX),
-	AppliedCode      UDT_ID,          -- negative for fail, 0 for success, 1 for pending, > 1 for warning
+	TrackingID       UDT_ID,          -- Tracking ID from client to support searching later    
+	Code             UDT_ID,          -- negative for fail, 0 for success, 1 for pending, > 1 for warning
 	Reason           nvarchar(2048),  -- fail or warn reason
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
@@ -75,7 +94,6 @@ CREATE TABLE mpm.Locks(
     VFileID          UDT_ID,
 	LockTypeID       UDT_ID,               -- only 1 entry per lock type for a file
 	Locked           UDT_Bool,
-	UserID           UDT_ID,
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -249,6 +267,8 @@ DROP TABLE mpm.WBBackups;
 CREATE TABLE mpm.WBBackups(
     VFileID          UDT_ID,
 	BackupID         UDT_ID_BIG,
+	Code             UDT_ID,          -- negative for fail, 0 for success, +ve for backed up with warning
+	Reason           nvarchar(2048),  -- fail or warn reason
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -287,11 +307,16 @@ CREATE TABLE mpm.BackupSheets(
     StartColNum      UDT_CellColumn,
     EndRowNum        UDT_CellRow,
     EndColNum        UDT_CellColumn,
+	SheetCreatedBy         UDT_ID,
+    SheetCreatedDate       UDT_DateTime,
+    SheetLastUpdatedBy     UDT_ID_Opt,
+    SheetLastUpdatedDate   UDT_DateTime_Opt,
+    SheetRStatus           UDT_RowStatus,
 	CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
-    LastUpdatedDate   UDT_DateTime_Opt,
-    RStatus           UDT_RowStatus,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
     CONSTRAINT PK_MPM_BackupSheetID PRIMARY KEY (VFileID, BackupID, SheetID),
 );
 
@@ -303,6 +328,11 @@ CREATE TABLE mpm.BackupProducts(
 	ProductID        UDT_ID,
     Name             UDT_Name,
 	SheetID          UDT_ID,
+	ProductCreatedBy        UDT_ID,
+    ProductCreatedDate      UDT_DateTime,
+    ProductLastUpdatedBy    UDT_ID_Opt,
+    ProductLastUpdatedDate   UDT_DateTime_Opt,
+    ProductRStatus           UDT_RowStatus,
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -319,6 +349,11 @@ CREATE TABLE mpm.BackupProductTypes(
 	ProductTypeID    UDT_ID,
     Name             UDT_Name,
 	ProductID        UDT_ID,
+	ProductTypeCreatedBy        UDT_ID,
+    ProductTypeCreatedDate      UDT_DateTime,
+    ProductTypeLastUpdatedBy    UDT_ID_Opt,
+    ProductTypeLastUpdatedDate   UDT_DateTime_Opt,
+    ProductTypeRStatus           UDT_RowStatus,
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
@@ -340,7 +375,12 @@ CREATE TABLE mpm.BackupMRanges(
 	ProductTypeID    UDT_ID,
 	HeaderTableID    UDT_ID,
     RangeNum         UDT_Sequence,   -- order of range within sheet, in same sheet there can be multiple ranges    
-    CreatedBy        UDT_ID,
+    MRangeCreatedBy        UDT_ID,
+    MRangeCreatedDate      UDT_DateTime,
+    MRangeLastUpdatedBy    UDT_ID_Opt,
+    MRangeLastUpdatedDate   UDT_DateTime_Opt,
+    MRangeRStatus           UDT_RowStatus,
+	CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
@@ -360,7 +400,12 @@ CREATE TABLE mpm.BackupMSeries(
 	HeaderTableID    UDT_ID,
 	DetailTableID    UDT_ID,
     SeriesNum        UDT_Sequence,
-    CreatedBy        UDT_ID,
+    MSeriesCreatedBy        UDT_ID,
+    MSeriesCreatedDate      UDT_DateTime,
+    MSeriesLastUpdatedBy    UDT_ID_Opt,
+    MSeriesLastUpdatedDate   UDT_DateTime_Opt,
+    MSeriesRStatus           UDT_RowStatus,
+	CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
@@ -391,7 +436,12 @@ CREATE TABLE mpm.BackupMTables(
     BandedRows       UDT_Bool,
     BandedColumns    UDT_Bool,
     FilterButton     UDT_Bool,
-    CreatedBy        UDT_ID,
+	MTableCreatedBy        UDT_ID,
+    MTableCreatedDate      UDT_DateTime,
+    MTableLastUpdatedBy    UDT_ID_Opt,
+    MTableLastUpdatedDate   UDT_DateTime_Opt,
+    MTableRStatus           UDT_RowStatus,
+	CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
     LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate   UDT_DateTime_Opt,
@@ -400,6 +450,7 @@ CREATE TABLE mpm.BackupMTables(
 );
 
 
+-- No storage of meta columns like CreatedBy for Cells as too much space will be taken up
 DROP TABLE mpm.BackupCells;
 CREATE TABLE mpm.BackupCells(
     VFileID          UDT_ID,

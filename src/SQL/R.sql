@@ -253,8 +253,85 @@ SELECT MAX(ID) FROM dbo.VUsers
 -- DELETE FROM dbo.VUsers WHERE ID = 0
 
 -- Activate user
-UPDATE dbo.VUsers SET RStatus = dbo.CONST('RSTATUS_ACTIVE') WHERE ID = 102
+--UPDATE dbo.VUsers SET RStatus = dbo.CONST('RSTATUS_ACTIVE') WHERE ID = 102
+
+-------------------------------
 
 
+select * from mpm.Products
+select * from mpm.ProductTypes
+select * from mpm.Sheets
+select * from mpm.MRanges
+select * from mpm.MSeries
+select * from mpm.MTables
+
+
+select * from mpm.Workbooks
+-- Add workbook record
+-- INSERT INTO mpm.Workbooks VALUES(3, 'Test Workbook', 1, 1, '', 4, GETDATE(), NULL, NULL, dbo.CONST('RSTATUS_ACTIVE'))
+
+select * from dbo.VUsers
+select * from mpm.Locks
+select * from mpm.LockTypes
+
+-- Locks:
+-- Add edit lock for file - will be done by the relevant user
+-- INSERT INTO mpm.Locks VALUES(3,1,1,4, GETDATE(), NULL, NULL, dbo.CONST('RSTATUS_ACTIVE'))
+-- UPDATE mpm.Locks SET Locked = 0 WHERE VFileID = 3 AND LockTypeID = 1
+
+-- Add backup lock but make it unlocked - will be applied by Admin
+-- INSERT INTO mpm.Locks VALUES(3,2,0,2, GETDATE(), NULL, NULL, dbo.CONST('RSTATUS_ACTIVE'))
+-- UPDATE mpm.Locks SET Locked = 1 WHERE VFileID = 3 AND LockTypeID = 2
+
+
+-- Edits
+-- TRUNCATE TABLE mpm.Edits
+select * from mpm.Workbooks
+select * from mpm.Edits
+
+select * from mpm.WBEventLogs
+select * from mpm.WBEventTypes
+select * from mpm.WBBackups
+select * from mpm.WBVersions
+
+SELECT GETDATE()
+
+SELECT * FROM mpm.Sheets
+SELECT * FROM mpm.BackupSheets
+
+TRUNCATE TABLE mpm.BackupSheets
+
+INSERT INTO mpm.BackupSheets
+SELECT VFileID, 1, SheetID, Name, SheetNum, Style, StartRowNum, StartColNum, EndRowNum, EndColNum, 
+    CreatedBy, CreatedDate, LastUpdatedBy, LastUpdatedDate, RStatus,
+	2, GETDATE(), NULL, NULL, 2
+FROM mpm.Sheets WHERE VFileID = 3
+
+SELECT LatestBackUpID+1 FROM mpm.Workbooks WHERE VFileID = 3
+
+SELECT * FROM mpm.Sheets
+SELECT * FROM mpm.BackupSheets
+
+SELECT * FROM mpm.Products
+SELECT * FROM mpm.BackupProducts
+
+
+-- TRUNCATE TABLE mpm.WBBackups
+
+--BEGIN TRY  
+--    -- Generate a divide-by-zero error.  
+--    SELECT 1/0;  
+--END TRY  
+--BEGIN CATCH  
+--    print 'Line ' + CAST(ERROR_LINE() AS nvarchar(5)) + ':'+ ERROR_MESSAGE()
+--END CATCH;  
+--GO
+
+
+select * from mpm.DBLogs
+-- INSERT INTO mpm.DBLogs VALUES('Backup', 1, 'Failed', NULL, NULL, NULL, 2, GETDATE())
+
+--DECLARE @test nvarchar(5) = 'dsadasdass'
+--print @test
 
 
