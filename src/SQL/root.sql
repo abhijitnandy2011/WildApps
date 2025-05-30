@@ -1,15 +1,24 @@
--- Basic DB script
+----------------------------------------------------------
+-- 22nd Jan
+-- Creating all tables except shared & versions
+
+
 
 
 ------------------------------------
 -- User defined types
 
 CREATE TYPE dbo.UDT_ID FROM int NOT NULL;
-CREATE TYPE dbo.UDT_ID_BIG FROM bigint NOT NULL;
+CREATE TYPE dbo.UDT_ID_Opt FROM int NULL;
+CREATE TYPE dbo.UDT_ID_BIG FROM bigint NOT NULL;   -- TODO
+CREATE TYPE dbo.UDT_ID_BIG_Opt FROM bigint NULL;   -- TODO
 
 CREATE TYPE dbo.UDT_DateTime FROM datetime NOT NULL;
 CREATE TYPE dbo.UDT_DateTime_Opt FROM datetime NULL;
+CREATE TYPE dbo.UDT_Token FROM [nvarchar](40) NOT NULL;
+CREATE TYPE dbo.UDT_Token_Opt FROM [nvarchar](40) NULL;
 CREATE TYPE dbo.UDT_Name FROM [nvarchar](128) NOT NULL;
+CREATE TYPE dbo.UDT_Name_Opt FROM [nvarchar](128) NULL;
 CREATE TYPE dbo.UDT_Name_med FROM [nvarchar](512) NOT NULL;
 CREATE TYPE dbo.UDT_Name_Big FROM [nvarchar](1024) NOT NULL;
 CREATE TYPE dbo.UDT_Settings FROM [nvarchar](2048) NOT NULL;
@@ -23,6 +32,7 @@ CREATE TYPE dbo.UDT_RowStatus FROM [tinyint] NOT NULL;
 CREATE TYPE dbo.UDT_Number_Int FROM int NOT NULL;
 CREATE TYPE dbo.UDT_Number_Int_Opt FROM int NULL;
 CREATE TYPE dbo.UDT_Sequence FROM smallint NOT NULL; 
+CREATE TYPE dbo.UDT_ObjectType FROM smallint NOT NULL; 
 
 CREATE TYPE dbo.UDT_CellRow FROM int NOT NULL;
 CREATE TYPE dbo.UDT_CellColumn FROM int NOT NULL;
@@ -30,425 +40,341 @@ CREATE TYPE dbo.UDT_CellValue FROM [nvarchar](2048) NOT NULL;
 CREATE TYPE dbo.UDT_CellFormula FROM [nvarchar](1024) NOT NULL;
 CREATE TYPE dbo.UDT_CellFormat FROM [nvarchar](128) NOT NULL;
 CREATE TYPE dbo.UDT_CellStyle FROM [nvarchar](1024) NOT NULL;
+CREATE TYPE dbo.UDT_CellComment FROM [nvarchar](1024) NOT NULL;
 
 CREATE TYPE dbo.UDT_Bool FROM bit NOT NULL;
 
 
+-- TODO
+CREATE TYPE dbo.UDT_Path FROM [nvarchar](800) NOT NULL;
+
+CREATE TYPE dbo.UDT_LogDescription FROM [nvarchar](max) NOT NULL;
+CREATE TYPE dbo.UDT_LogDescription_Opt FROM [nvarchar](max) NULL;  -- TODO
+CREATE TYPE dbo.UDT_Description FROM [nvarchar](max) NOT NULL;
+CREATE TYPE dbo.UDT_Description_Small_Opt FROM [nvarchar](800) NULL;
+
+
+-- Schema reqd later for app
+CREATE SCHEMA zsa;
+CREATE SCHEMA mpm;
+
+
+-- Creating the tables
+DROP TABLE dbo.RAppsRoot;
+CREATE TABLE dbo.RAppsRoot(   
+    ID            UDT_ID,
+    CompanyName   UDT_Name_Big,   -- TODO: make UNIQUE
+	RootFolderID  UDT_ID,          -- entire file system's root
+    [CreatedBy]      UDT_ID,
+	[CreatedDate]    UDT_DateTime,
+	[LastUpdatedBy]  UDT_ID_Opt,
+	[LastUpdatedDate] UDT_DateTime_Opt,
+	[RStatus] UDT_RowStatus,
+	CONSTRAINT [PK_RAppsRoot] PRIMARY KEY (ID)
+)
 
 
 
+-- Once the Admin role & Admin user is created, no need to drop/re-create any more constraints
+DROP TABLE [dbo].[VUsers];
+CREATE TABLE [dbo].[VUsers](
+	[ID] UDT_ID,
+	[UserName] UDT_Name,   -- TODO: make UNIQUE
+	[FirstName] UDT_Name,
+	[LastName] UDT_Name_Opt,
+	[FullName] UDT_Name_med,
+	[Email] UDT_Name,      -- TODO: make UNIQUE
+	[EmailConfirmed] [bit] NOT NULL,
+	[EmailToken] UDT_Token_Opt,
+	[Location] UDT_Name_med,
+	[RoleID]    [uniqueidentifier] NOT NULL,
+	[LastLoginDate]  UDT_DateTime_Opt,
+	[CreatedBy]      UDT_ID,  -- self reference
+	[CreatedDate]    UDT_DateTime,
+	[LastUpdatedBy]  UDT_ID_Opt,      -- self reference
+	[LastUpdatedDate] UDT_DateTime_Opt,
+	[RStatus] UDT_RowStatus,
+	CONSTRAINT [PK_VUsers] PRIMARY KEY (ID)
+)
 
 
+DROP TABLE [dbo].[VRoles];
+CREATE TABLE [dbo].[VRoles](
+	[ID] [uniqueidentifier] NOT NULL,
+	[Name]   UDT_Name,
+	[Description]  UDT_Name,
+	[CreatedBy]      UDT_ID,
+	[CreatedDate]    UDT_DateTime,
+	[LastUpdatedBy]  UDT_ID_Opt,
+	[LastUpdatedDate] UDT_DateTime_Opt,
+	[RStatus] UDT_RowStatus,
+	CONSTRAINT [PK_VRoles] PRIMARY KEY (ID)	
+)
 
 
+-- TODO
+DROP TABLE [dbo].[VSystems];
+CREATE TABLE dbo.VSystems(
+    ID           UDT_ID IDENTITY(1,1),
+    Name         UDT_Name_Big,  -- TODO: make UNIQUE, non-clustered index to ensure unique name
+    AssignedTo    UDT_ID_Opt,   -- not assigned(NULL)/currently assigned to(VUserID)
+	RootFolderID  UDT_ID,       -- TODO: must be UNIQUE, get the path by lookup in VFolders table
+	Description   UDT_Description_Small_Opt,
+	[CreatedBy]      UDT_ID,
+	[CreatedDate]    UDT_DateTime,
+	[LastUpdatedBy]  UDT_ID_Opt,
+	[LastUpdatedDate] UDT_DateTime_Opt,
+	[RStatus] UDT_RowStatus,
+    CONSTRAINT PK_VSystems PRIMARY KEY (ID),	
+)
 
 
+-- TODO
+DROP TABLE dbo.VFolders;
+CREATE TABLE dbo.VFolders(
+    ID            UDT_ID IDENTITY(1,1),
+    Name          UDT_Name_Big,   -- TODO: only one named 'root'
+	Attrs  		  UDT_Name,    -- unix style 'xxx', so 'rw' means read & write allowed for all users
+	Path          UDT_Path,      -- TODO: make UNIQUE, unix style path(TODO: INSERT/UPDATE TRIGGER to check the path components & whether they are in fact in the mentioned hierarchy)
+	ParentIDs       UDT_Path,      -- UNUSED for now, comma separated list of ancestor FolderIDs, oldest first(TODO: TRIGGERS to check the IDs)
+    Description   UDT_Description_Small_Opt,
+	CreatedBy       UDT_ID,
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_VFolders PRIMARY KEY (ID)
+)
+
+
+-- TODO
+DROP TABLE dbo.VFiles;
+CREATE TABLE dbo.VFiles(
+    ID            UDT_ID IDENTITY(1,1),
+    Name          UDT_Name_Big,     -- TODO: cant be 'root'
+    FileTypeID    UDT_ID, -- to forward to proper webapp when opening or getting file info
+    Attrs  		  UDT_Name,
+	Description   UDT_Description_Small_Opt,
+    CreatedBy       UDT_ID,
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_VFiles PRIMARY KEY (ID)
+)
+
+
+DROP TABLE dbo.VApps;
+CREATE TABLE dbo.VApps(
+    ID            UDT_ID IDENTITY(1,1),
+    Name          UDT_Name_Big,
+	Description  UDT_Name_big,
+    Owner         UDT_ID,  -- which VUser owns/administers the app
+    Settings       UDT_Name_Big,
+    [CreatedBy]      UDT_ID,
+	[CreatedDate]    UDT_DateTime,
+	[LastUpdatedBy]  UDT_ID_Opt,
+	[LastUpdatedDate] UDT_DateTime_Opt,
+	[RStatus] UDT_RowStatus,
+	CONSTRAINT PK_VApps PRIMARY KEY (ID)
+)
+
+
+DROP TABLE dbo.FileTypes;
+CREATE TABLE dbo.FileTypes(
+    ID        UDT_ID IDENTITY(1,1),    
+    Name      UDT_Name,     -- Various file types in the system
+	Description      UDT_Name_big,
+    CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_FileTypes PRIMARY KEY (ID)	
+)
+
+
+-- TODO
+DROP TABLE dbo.Notifications;
+CREATE TABLE dbo.Notifications(
+    ID               UDT_ID IDENTITY(1,1),
+	Msg	             UDT_Name_Med,   -- for display on bell icon list
+	Description      UDT_Description,  -- when clicked, can show bigger detailed description
+	TaskID1          UDT_ID_Opt,
+	TaskID2          UDT_ID_Opt,
+	TaskStatus1      UDT_ID_Opt,
+	TaskStatus2      UDT_ID_Opt,
+    CreatedBy        UDT_ID,		-- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_Notifications PRIMARY KEY (ID)	
+)
+
+
+-- TODO
+DROP TABLE dbo.Tasks;
+CREATE TABLE dbo.Tasks(
+    ID               UDT_ID IDENTITY(1,1),
+	Description      UDT_Name_Big,
+	TaskStatus       UDT_ID,
+	AppID            UDT_ID_Opt,   -- the app handling the task
+    CreatedBy        UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate  UDT_DateTime_Opt,
+    RStatus          UDT_RowStatus,
+	CONSTRAINT PK_Tasks PRIMARY KEY (ID)	
+)
+
+
+-- TODO
+DROP TABLE dbo.AuthLogs;
+CREATE TABLE dbo.AuthLogs(    
+	ID            UDT_ID IDENTITY(1,1),    
+	Module        UDT_Name,     -- Various file types in the system
+    Code          UDT_ID,
+	Msg           UDT_Name_Med,     -- Various file types in the system
+	Description   UDT_LogDescription,     -- Various file types in the system
+	ObjectID1     UDT_ID,    
+	ObjectID2     UDT_ID, 
+	ObjectID3     UDT_ID, 
+    CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate      UDT_DateTime,
+	CONSTRAINT PK_AuthLogs PRIMARY KEY (ID)	
+)
+
+
+-- TODO
+DROP TABLE dbo.SysLogs;
+CREATE TABLE dbo.SysLogs(    
+	ID              UDT_ID IDENTITY(1,1),    
+	Module          UDT_Name,
+	Code            UDT_ID,
+    Msg             UDT_Name_Med,      -- error msg with interpolated column names
+	Description     UDT_LogDescription,   -- desc with interpolated column names to replace with values in other columns in the same row
+	ObjectID1       UDT_ID_Opt,    -- distinct ID fields instead of parsing it from description. Description can interpolate these IDs
+	ObjectID2       UDT_ID_Opt, 
+	ObjectID3       UDT_ID_Opt,    -- 3 IDs maybe needed when a file is moved from FolderID 1 to FolderID 2 
+    CreatedBy       UDT_ID,    -- VUserID i.e. ID from the VUser table
+    CreatedDate     UDT_DateTime,
+	CONSTRAINT PK_SysLogs PRIMARY KEY (ID)	
+)
 
 
 
 -----------------------------------
 
-In namespace dbo:
+-- RELATION join tables - dbo
 
--- Entities
--- Only one entry - each row can be a property instead of each column
-CREATE TABLE RAppsRoot(   
-    ID 
-    CompanyName
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
--- Basic entities have V infront for Virtual, to prevent name clashes in queries
--- Users 1 to 1000 are various system related users & admins
--- From 1001, we have real users
-CREATE TABLE [dbo].[VUsers](
-	[Id] [uniqueidentifier] NOT NULL,
-	[UserName] [nvarchar](max) NOT NULL,
-	[FirstName] [nvarchar](max) NOT NULL,
-	[LastName] [nvarchar](max) NULL,
-	[FullName] [nvarchar](max) NOT NULL,
-	[Email] [nvarchar](max) NOT NULL,
-	[EmailConfirmed] [bit] NOT NULL,
-	[EmailToken] [nvarchar](max) NOT NULL,
-	[Location] [nvarchar](max) NOT NULL,
-	[CreatedOn] [datetime2](7) NOT NULL,
-	[RStatus] [int] NOT NULL,
-	[RoleId] [uniqueidentifier] NOT NULL,
-	[LastLoginOn] [datetime2](7) NULL,
- CONSTRAINT [PK_VUsers] PRIMARY KEY CLUSTERED 
-(
-	[Id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-
-ALTER TABLE [dbo].[VUsers]  WITH CHECK ADD  CONSTRAINT [FK_VUsers_VRoles_RoleId] FOREIGN KEY([RoleId])
-REFERENCES [dbo].[VRoles] ([Id])
-ON DELETE CASCADE
-GO
-
-ALTER TABLE [dbo].[VUsers] CHECK CONSTRAINT [FK_VUsers_VRoles_RoleId]
-
-
--- VUser Roles
-CREATE TABLE [dbo].[VRoles](
-	[Id] [uniqueidentifier] NOT NULL,
-	[Name] [nvarchar](max) NOT NULL,
-	[Description] [nvarchar](max) NOT NULL,
- CONSTRAINT [PK_VRoles] PRIMARY KEY CLUSTERED 
-(
-	[Id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-
-
--- Pretty simple system now, assigned to 1 person, no multiple logins.
--- Systems can be shared and an user could own multiple systems - so many to many.
--- Used to manage files/folders, set storage limits, what file types can be created,
--- provide default set of apps & files
--- Also manage desktop settings. App settings are managed by the app itself in its own tables.
-CREATE TABLE VSystems(
-    ID  int NOT NULL IDENTITY(1,1),
-    Name [nvarchar](1024) NULL,
-    AssignedTo int NULL,   -- currently assigned to - VUserID
-    CreatedBy int NULL,
-    CreatedDate datetime NOT NULL,	
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus smallint NOT NULL,
-    CONSTRAINT PK_VSystems PRIMARY KEY (Id)
-)
-
--- An app can be installed in many systems
--- Has unique settings for each system.
--- Default apps like desktop & File Browser maintain their settings here in JSON or
--- in their own tables by System/User.
-CREATE TABLE VApps(
-    ID,
-    Name,
-    Owner,
-    Settings
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
-CREATE TABLE VFolders(
-    ID,
-    Name,
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
--- File can be edited by multiple users after sharing, but has one owning VSystem.
--- The user to whom the system is assigned, owns the file.
--- Users can leave, but the system continues owning the file.
--- Various types of files, spreadsheets, docs, text files, shortcuts to other files in same
--- or another system(shared file)
--- File contents are managed in one or more DB tables, like spreadsheets will need Row/Column, tables, etc
-CREATE TABLE VFiles(
-    ID,
-    Name,
-    VFileTypeID,
-    CurrentVersionID,    -- current file version from VFileVersion table
-    IsShared,
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
+-- User profiles in a system
+DROP table dbo.SystemUsers;
+CREATE TABLE dbo.SystemUsers(
+    ID             UDT_ID IDENTITY(1,1),    
+    VSystemID      UDT_ID,
+    VUserID        UDT_ID,
+    Profile        UDT_Name_Big, -- user settings on a specific system, maybe needed later, can be expanded to store settings as JSON later or more columns in this table
+    CreatedBy        UDT_ID,
+    CreatedDate       UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate   UDT_DateTime_Opt,
+    RStatus           UDT_RowStatus,
+	CONSTRAINT PK_SystemUsersID PRIMARY KEY (ID)    
 )
 
 
--- Various file types in the System, default types & App installed types.
--- Shared file is not a type - its a fundamental attribute of the file diff from type.
-CREATE TABLE FileTypes(
-    ID,    
-    Name           -- Various file types in the system
-    CreatedBy    -- VUserID i.e. ID from the VUser table
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
+-- Not needed currently, all apps available for all users in all systems
+--DROP TABLE dbo.SystemUserApps;
+--CREATE TABLE dbo.SystemUserApps(
+--    ID               UDT_ID IDENTITY(1,1),    
+--    VSystemID        UDT_ID,
+--    VUserID          UDT_ID,
+--    VAppID           UDT_ID,
+--    Settings         UDT_Name_Big,
+--    CreatedBy        UDT_ID,
+--    CreatedDate       UDT_DateTime,
+--    LastUpdatedBy    UDT_ID_Opt,
+--    LastUpdatedDate   UDT_DateTime_Opt,
+--    RStatus           UDT_RowStatus,
+--	CONSTRAINT PK_SystemUserAppsID PRIMARY KEY (ID),
+--)
 
 
--- Lists all versions for all files
-CREATE TABLE FileVersions(
-    ID,    
-    VFileID,
-    Version,
-    CreatedBy    -- VUserID i.e. ID from the VUser table
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
--- Audit tables
--- Various actions and objects in the audit entry needs to be clickable.
--- So the involved object names have to be stored in a special way.
--- The line has to be in a specific format with placeholders for the objects e.g. {object0} etc
--- Audits can happen at various object levels 
--- System level for file/folder/App changes
--- App level for files opened/closed etc
--- Folder level, files created/deleted/renamed/shared etc
--- File level for versioning, file type specific changes based on the app used to open it.
---   Versioning is tied to file(not folder), when file moved to another folder, retains the version info.
-
-
--------------------------------
-
--- Relations
-
--- Multiple assignments possible - many to many
--- An user could own multiple systems.
--- All user specific settings would be replicated based on the user folder/profile
--- Shared data can also be a user of the VSystem.
-CREATE TABLE SystemUser(
-    ID,    
-    VSystemID,
-    VUserID,
-    Profile     -- user settings on a specific system, maybe needed later
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
--- Which system has which apps for which user
--- Apps store user settings here or mapped in their own tables.
--- File Browser app stores settings here as JSON. RSheets might use its own tables.
--- Apps should not have direct access to this table as other apps settings will be visible!
-CREATE TABLE SystemUserApp(
-    ID,   
-    VSystemID
-    VUserID
-    VAppID    
-    Settings,
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
--- No need for 2 tables, this has the rel between System, Folders & File
--- Which System has which folder & file etc.
-CREATE TABLE SystemFolderFile(
-    ID,
-    VSystemID
-    VFolderID 
-    VFileID   
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
-
--- Shared files - which files are shared with which users.
--- Files are shared with a user, not a system. If user logs in to another system, files
--- will be visible there too - if file is unshared, it will be gone from all systems.
--- Any user can find files shared with him & also find files which he shared.
--- Separate folders to see this are there & in the original folder will show 'shared' icon
-CREATE TABLE SharedFileUser(
-    ID,    
-    VFileID   
-    VUserID     
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
-
--- A file type could be related/opened by many apps
-CREATE TABLE FileTypeApp(
-    ID,    
-    VFileTypeID
-    VAppID
-    CreatedBy
-    CreatedDate
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus
-)
-
------------------------------------------
-
--- RSheets App(R Platform, spreadsheet app)
--- Has app specific tables to manage its files
--- Maybe own namespace 'rsa'
--- Each object type has its own tables
--- Sheet, Cell, Table is needed now. Later PivotTable, Chart, Image, Macro etc.
-
-CREATE NAMESPACE rsa;
-
--- Workbook level settings like which sheet was last opened, which cell was last in focus
--- Last saved etc. These settings are not stored in VFile as that has only File generic stuff.
--- When a RSheet file is created using the RSheets app, it will make an entry here to store its data.
--- Its similar to making an entry in the file system for a file - without this there is no data persistence.
--- This is the root for the data storage of the RSheet file. Root of the RSheet file data model.
--- Other apps will have other models in other structs optimized for their own data.
--- A workbook is in a file.
-DROP TABLE rsa.Workbooks;
-CREATE TABLE rsa.Workbooks(
-    ID               UDT_ID IDENTITY(1,1),
-    VFileID          UDT_ID,    
-    Name             UDT_Name,  -- same as VFile.Name
-    LastOpenedSheet  UDT_Sequence,
-    LastFocusCellRow UDT_CellRow,
-    LastFocusCellCol UDT_CellColumn,
-    Settings         UDT_Settings_Opt,   -- Other settings go here in JSON string format - can be columnized if necessary later for searching/indexing faster
+DROP TABLE dbo.SystemFolderFiles;
+CREATE TABLE dbo.SystemFolderFiles(
+    ID               UDT_ID IDENTITY(1,1),    
+    VSystemID        UDT_ID,
+	VFileID          UDT_ID_Opt,    
+	VFolderID        UDT_ID_Opt,    
+	Link             UDT_Bool,   -- if false, VFileID/VFolderID is a child, else its a link to the file/folder
+	VParentFolderID  UDT_ID,
+	CheckedOutBy     UDT_ID_Opt,   -- NULL means not checked out
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_Number_Int_Opt,
+    LastUpdatedBy    UDT_ID_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,
     RStatus          UDT_RowStatus,
-    CONSTRAINT PK_WorkbookID PRIMARY KEY NONCLUSTERED (ID),
-);
+	CONSTRAINT PK_SystemFolderFilesID PRIMARY KEY (ID)
+)
 
 
-DROP TABLE rsa.Sheets;
-CREATE TABLE rsa.Sheets(
-    ID               UDT_ID IDENTITY(1,1),
-    WorkbookID       UDT_ID,
-    Name             UDT_Name,
-    SheetNum         UDT_Sequence,
-    Style            UDT_Style,
-    StartRowNum      UDT_CellRow,
-    StartColNum      UDT_CellColumn,
-    EndRowNum        UDT_CellRow,
-    EndColNum        UDT_CellColumn,
+
+-- Not all files will be created via upload so this is not in VFiles. 
+-- Those which are will have their original file upload path saved here.
+-- No need of VSystemID here as VFileID is unique across all systems.
+DROP TABLE dbo.FileUploads;
+CREATE TABLE dbo.FileUploads(
+	ID            UDT_ID IDENTITY(1,1),
+	VFileID       UDT_ID,
+	VAppID        UDT_ID,    -- user selected app ID to indicate which app the file is meant for
+	FileName      UDT_Name_med,
+	Description   UDT_Description,
+	FilePath      UDT_Path,
+	CreatedBy        UDT_ID,
+    CreatedDate       UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate   UDT_DateTime_Opt,
+    RStatus           UDT_RowStatus,
+	CONSTRAINT PK_FileUploadsID PRIMARY KEY (ID),
+)
+
+
+-- All Apps available for all users in all systems, for now
+-- This app with file type association is global.
+DROP TABLE dbo.FileTypeApps;
+CREATE TABLE dbo.FileTypeApps(
+    ID                UDT_ID IDENTITY(1,1),    
+    VFileTypeID       UDT_ID,
+    VAppID            UDT_ID,
     CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus          UDT_RowStatus,
-    CONSTRAINT PK_SheetID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Workbooks_Sheets_WorkbookID FOREIGN KEY (WorkbookID) REFERENCES Workbook(ID)
-);
+    CreatedDate       UDT_DateTime,
+    LastUpdatedBy    UDT_ID_Opt,
+    LastUpdatedDate   UDT_DateTime_Opt,
+    RStatus           UDT_RowStatus,
+	CONSTRAINT PK_FileTypeAppsID PRIMARY KEY (ID),
+)
 
 
--- Excel tables for all files in the system
-DROP TABLE rsa.XlTables;
-CREATE TABLE rsa.XlTables(
-    ID               UDT_ID IDENTITY(1,1),
-    SheetID          UDT_ID,   
-    Name             UDT_Name_med,
-    StartRowNum      UDT_CellRow,
-    StartColNum      UDT_CellColumn,
-    EndRowNum        UDT_CellRow,
-    EndColNum        UDT_CellColumn,    
-    Style            UDT_CellStyle,   
-    HeaderRow        UDT_Bool,
-    TotalRow         UDT_Bool,
-    BandedRows       UDT_Bool,
-    BandedColumns    UDT_Bool,
-    FilterButton     UDT_Bool,
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus          UDT_RowStatus
-    CONSTRAINT PK_XlTableID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Sheets_XlTables_SheetID FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
-);
-
-
--- Cell data for current version
--- Only cell data is split between current version and older versions as its a lot.
--- Querying easier with less data.
-DROP TABLE rsa.Cells;
-CREATE TABLE rsa.Cells(
-    SheetID          UDT_ID,
-    RowNum           UDT_CellRow,
-    ColNum           UDT_CellColumn,
-    Value            UDT_CellValue,
-    Formula          UDT_CellFormula,  -- maybe manage this in a separate formula table for optimum checking with dependencies of the formula(to decide when to call calculate())
-    Format           UDT_CellFormat,
-    Style            UDT_CellStyle,
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus          UDT_RowStatus
-    CONSTRAINT PK_CellID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Sheets_Cells_SheetID FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
-);
-
--- Cell data for older versions. This table will get huge so we dont want to regularly query this.
--- More of historical data.
-DROP TABLE rsa.CellOldVers;
-CREATE TABLE rsa.CellOldVers(
-    VersionID        UDT_ID,   
-    SheetID          UDT_ID,
-    RowNum           UDT_CellRow,
-    ColNum           UDT_CellColumn,
-    Value            UDT_CellValue,
-    Formula          UDT_CellFormula,  -- maybe manage this in a separate formula table for optimum checking with dependencies of the formula(to decide when to call calculate())
-    Format           UDT_CellFormat,
-    Style            UDT_CellStyle,
-    CreatedBy        UDT_ID,
-    CreatedDate      UDT_DateTime,
-    LastUpdatedBy    UDT_Number_Int_Opt,
-    LastUpdatedDate  UDT_DateTime_Opt,
-    RStatus          UDT_RowStatus
-    CONSTRAINT PK_CellOldVerID PRIMARY KEY NONCLUSTERED (ID),
-    CONSTRAINT FK_Sheets_CellOldVers_SheetID FOREIGN KEY (SheetID) REFERENCES Sheet(ID)
-);
+---------------------------------------------
 
 
 
+-------------------------------------------------------------------
+-- Now ADD SEED DATA into tables, then activate constraints
+-- See seed.sql
 
---------------------------------------------------------------------------------
--- Initial scripts for creating System VUsers like sysadmin etc
+-------------------------------------------------------------------
+-- dbo, add all non-PK constraints
+-- see dboConstraints.sql
 
--- Create Admin
--- INSERT INTO VUsers() VALUES ()
+-----------------------------------------------------------
+-- rsa, add constraints
+-- see rsaConstraints.sql
 
--- Create a test user with Visitor rights
-
-
-
-
-
---------------------------------------------------------------------------------
--- Recreating tables
-
--- Clearing all table data(except Workbooks)
-DELETE FROM rsa.Cells;
-DELETE FROM rsa.CellOldVers;
-DELETE FROM rsa.Sheets;
-DELETE FROM rsa.XlTables;
-
--- Dropping all constraints
--- Usually not needed, only dropping the constraints for the tables being modified are often enough
-ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_Workbooks_Sheets_WorkbookID];
-ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_Sheets_XlTables_SheetID];
-ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_Sheets_Cells_SheetID];
-ALTER TABLE [rsa].[CellOldVers] DROP CONSTRAINT [FK_Sheets_CellOldVers_SheetID];
-ALTER TABLE [rsa].[CellOldVers] DROP CONSTRAINT [PK_CellOldVerID];
-ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [PK_CellID];
-ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [PK_XlTableID];
-ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [PK_WorkbookID];
-ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [PK_SheetID];
-
---------------------------
+-----------------------------------------------------------------------------------------------------
+-- Drop all constraints
+-- Query to generate drop constraints statements for all constraints(including PK ones)
 
 DECLARE @sql NVARCHAR(MAX);
 SET @sql = N'';
@@ -468,3 +394,48 @@ ORDER BY c.[type];
 PRINT @sql;
 
 
+
+-- dbo
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VFolders_RootFolderID];
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_AssignedTo];
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[VSystems] DROP CONSTRAINT [FK_VSystems_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_Owner];
+  ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[VApps] DROP CONSTRAINT [FK_VApps_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_FileTypes_FileTypeID];
+  ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[VFiles] DROP CONSTRAINT [FK_VFiles_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[FileTypes] DROP CONSTRAINT [FK_FileTypes_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VSystems_VSystemID];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_VUserID];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[SystemUsers] DROP CONSTRAINT [FK_SystemUsers_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VSystems_VSystemID];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_VUserID];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VApps_VAppID];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[SystemUserApps] DROP CONSTRAINT [FK_SystemUserApps_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_CheckedOutBy];
+  ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[SystemFolderFiles] DROP CONSTRAINT [FK_SystemFolderFiles_VUsers_LastUpdatedBy];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_FileTypes_VFileTypeID];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VApps_VAppID];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VUsers_CreatedBy];
+  ALTER TABLE [dbo].[FileTypeApps] DROP CONSTRAINT [FK_FileTypeApps_VUsers_LastUpdatedBy];
+
+
+-- rsa
+  ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VFiles_VFileID];
+  ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[Workbooks] DROP CONSTRAINT [FK_RSA_Workbooks_VUsers_LastUpdatedBy];
+  ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_Workbooks_WorkbookID];
+  ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[Sheets] DROP CONSTRAINT [FK_RSA_Sheets_VUsers_LastUpdatedBy];
+  ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_Sheets_SheetID];
+  ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[XlTables] DROP CONSTRAINT [FK_RSA_XlTables_VUsers_LastUpdatedBy];
+  ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_Sheets_SheetID];
+  ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_VUsers_CreatedBy];
+  ALTER TABLE [rsa].[Cells] DROP CONSTRAINT [FK_RSA_Cells_VUsers_LastUpdatedBy];
