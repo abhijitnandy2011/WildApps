@@ -610,8 +610,33 @@ dbo.CONST('RSTATUS_ACTIVE')
 
 
 
+--------------------------------------------------------
+-- MPM seed
+--------------------------------------------------------
 
-
+-- Setup the workbook
+INSERT INTO [mpm].[Workbooks]
+           ([VFileID]
+           ,[Name]
+           ,[LatestBackupID]
+           ,[LatestVersionID]
+           ,[LockHoldTimeInSecs]
+           ,[BackupFrequencyInDays]
+           ,[Settings]
+           ,[CreatedBy]
+           ,[CreatedDate]
+           ,[LastUpdatedBy]
+           ,[LastUpdatedDate]
+           ,[RStatus])
+     VALUES(
+		   3, 
+		   'Test Workbook', 
+		   1, 
+		   1, 
+		   300, 
+		   0, 
+		   '', 
+		   4, GETDATE(), NULL, NULL, dbo.CONST('RSTATUS_ACTIVE'))
 
 
 

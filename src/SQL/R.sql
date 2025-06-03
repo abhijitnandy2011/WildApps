@@ -267,8 +267,6 @@ select * from mpm.MTables
 
 
 select * from mpm.Workbooks
--- Add workbook record
--- INSERT INTO mpm.Workbooks VALUES(3, 'Test Workbook', 1, 1, '', 4, GETDATE(), NULL, NULL, dbo.CONST('RSTATUS_ACTIVE'))
 
 select * from dbo.VUsers
 select * from mpm.Locks
@@ -333,5 +331,18 @@ select * from mpm.DBLogs
 
 --DECLARE @test nvarchar(5) = 'dsadasdass'
 --print @test
+
+DECLARE @locked UDT_bool
+DECLARE @lastUpdatedBy UDT_ID
+DECLARE @lastUpdatedDate UDT_DateTime
+SELECT @locked=Locked, @lastUpdatedBy=LastUpdatedBy, @lastUpdatedDate=LastUpdatedDate FROM mpm.Locks 
+	WHERE LockTypeID=1 AND VFileID = 3
+print @locked
+print @lastUpdatedBy
+print @lastUpdatedDate
+select * from mpm.Locks
+select * from mpm.LockTypes
+
+SELECT CASE WHEN DATEDIFF(ss, @lastUpdatedDate, GETDATE()) > 300 THEN 1 ELSE 0 END
 
 

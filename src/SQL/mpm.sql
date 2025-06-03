@@ -25,7 +25,9 @@ CREATE TABLE mpm.Workbooks(
     VFileID          UDT_ID,    
     Name             UDT_Name,  -- same as VFile.Name
 	LatestBackupID   UDT_ID_BIG, 
-	LatestVersionID  UDT_ID_BIG,   -- version number may not be sequential 
+	LatestVersionID  UDT_ID_BIG,   -- version number may not be sequential
+	LockHoldTimeInSecs     UDT_Number_Int,
+	BackupFrequencyInDays  UDT_Number_Int,  -- 0 means no backups
     Settings         UDT_Settings_Opt,   -- Other settings go here in JSON string format - can be columnized if necessary later
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
