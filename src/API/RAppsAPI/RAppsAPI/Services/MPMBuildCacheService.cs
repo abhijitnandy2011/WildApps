@@ -18,7 +18,8 @@ namespace RAppsAPI.Services
 {
     public class MPMBuildCacheService : IMPMBuildCacheService
     {
-        // FileId vs Semaphore - all sheets of the file are locked till done
+        // Cache locks: FileId vs Semaphore - all sheets of the file are locked till done
+        // TODO: Check if a cache lock is needed as cache entries are threadsafe.
         // TODO: Maybe File+Sheet wise locks may be better
         // e.g. ConcurrentDictionary<int, ConcurrentDictionary<int, SemaphoreSlim>>
         private readonly ConcurrentDictionary<int, SemaphoreSlim> _dictSemaphores = new();
@@ -438,11 +439,7 @@ namespace RAppsAPI.Services
                     };
                 }
                 userEditsCacheEntry.ReqIdVsState[req.ReqId] = (int)MPMUserEditReqState.Intermediate;
-                cache.Set(userEditsCacheKey, userEditsCacheEntry);
-                // TODO: Update failed edit requests for user in cache
-                var userFailedEditsCacheKey = Constants.GetFailedEditRequestsCacheKey(userId);
-                // TODO: Failed req pass to this function and add to list in cache, so read can 
-                // send to user
+                cache.Set(userEditsCacheKey, userEditsCacheEntry);                
                 Console.WriteLine($"BuildFromExcelPackage: Cache entry is INTERMEDIATE, cache rows in TEMP state for request {req.ReqId}");
             }
             catch (Exception ex)
@@ -457,8 +454,14 @@ namespace RAppsAPI.Services
             return 0;
         }
 
-        
+
+        // TODO: Update failed edit requests for user in cache
+        var userFailedEditsCacheKey = Constants.GetFailedEditRequestsCacheKey(userId);
+        // TODO: Failed req pass to this function and add to list in cache, so read can 
+        // send to user
+
+
     }
 
-    
+
 }

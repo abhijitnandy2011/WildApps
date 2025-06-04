@@ -10,7 +10,8 @@ namespace RAppsAPI.Services
     public class MPMService(RDBContext context,
         IMemoryCache _memoryCache,
         IMPMBuildCacheService _buildCacheFromDBService,
-        IServiceProvider _serviceProvider) : IMPMService
+        IServiceProvider _serviceProvider,
+        IMPMBackgroundRequestQueue _reqQueue) : IMPMService
     {
         public async Task<MPMGetProductInfoResponseDTO> GetProductInfo(int fileId)
         {
@@ -59,7 +60,7 @@ namespace RAppsAPI.Services
 
                 // Parse the result set into a hierarchical structure
                 var products = new List<MPMProductInfo>();
-                int pid = 0, ptid=0, rid = 0;
+                int pid = 0, ptid = 0, rid = 0;
                 MPMProductInfo currProd = null;
                 MPMProductTypeInfo currProdType = null;
                 MPMRangeInfo currRange = null;
@@ -68,7 +69,7 @@ namespace RAppsAPI.Services
                     var p = rs[i].ProductName;
                     var pt = rs[i].ProductTypeName;
                     var r = rs[i].RangeName;
-                    if(currProd == null || currProd.ProductName != p)
+                    if (currProd == null || currProd.ProductName != p)
                     {
                         currProd = new MPMProductInfo();
                         products.Add(currProd);
@@ -94,7 +95,7 @@ namespace RAppsAPI.Services
                         currRange.RangeName = r;
                         currRange.imageUrl = "";
                     }
-                }             
+                }
 
                 // Send Product response
                 return new MPMGetProductInfoResponseDTO
@@ -103,7 +104,7 @@ namespace RAppsAPI.Services
                     Message = "success",
                     Products = products,
                 };
-                
+
             }
             catch (Exception ex)
             {
@@ -120,7 +121,7 @@ namespace RAppsAPI.Services
                     Products = new()
                 };
             }
-        }        
+        }
 
 
         // Get file rows
@@ -157,13 +158,13 @@ namespace RAppsAPI.Services
             {
                 // Got the completed edit reqs entry in cache
                 response.CompletedEditRequests = userEditsCacheEntry!.ReqIdVsState;  // TODO: check, return full info as dictionary          
-            }               
+            }
             // Check completed edit requests if such a list was given, before doing a read
             int retCode = 0;
-            if (((readDTO.CheckCompletedEditReqIds?.Count)?? 0) > 0)
+            if (((readDTO.CheckCompletedEditReqIds?.Count) ?? 0) > 0)
             {
                 retCode = CheckCompletedEditRequests(readDTO, userId, userEditsCacheEntry.ReqIdVsState, response);
-                if (retCode != 0) 
+                if (retCode != 0)
                 {
                     // There was an error or there are incomplete requests, cant proceed with read
                     return response;
@@ -186,7 +187,7 @@ namespace RAppsAPI.Services
                 {
                     cacheBuilt = true;
                     break;
-                }                
+                }
                 --triesLeft;
                 Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to build cache, tries left:{triesLeft}");
             } while (triesLeft > 0);
@@ -210,7 +211,7 @@ namespace RAppsAPI.Services
                 response.Code = -1;
                 Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to build cache after multiple tries");
             }
-            response.Message = "Failed to get rows.";            
+            response.Message = "Failed to get rows.";
             return response;
         }
 
@@ -220,19 +221,19 @@ namespace RAppsAPI.Services
         //   10 if not
         //   -1 on error
         private int CheckCompletedEditRequests(
-            MPMReadRequestDTO readDTO, 
+            MPMReadRequestDTO readDTO,
             int userId,
             Dictionary<int, int> dictReqIdVsState,
             MPMReadRequestResponseDTO response)
-        {            
-            int retCode = -1;            
+        {
+            int retCode = -1;
             var reqsToBeChked = readDTO.CheckCompletedEditReqIds;
             foreach (var rtc in reqsToBeChked)
             {
                 if (!dictReqIdVsState.ContainsKey(rtc))
                 {
                     // Add incomplete edit req
-                    response.IncompleteEditRequests.Add(rtc);                    
+                    response.IncompleteEditRequests.Add(rtc);
                 }
             }
             if (response.IncompleteEditRequests.Count > 0)
@@ -253,7 +254,7 @@ namespace RAppsAPI.Services
             MPMReadRequestDTO req,
             int userId,
             MPMReadRequestResponseDTO response)
-        {            
+        {
             int retCode = 0;
             foreach (var sheet in req.Sheets)
             {
@@ -278,20 +279,20 @@ namespace RAppsAPI.Services
                     SheetName = sheetName,
                     Rows = new(),
                     Tables = new(),
-                };                
+                };
                 // Check and add rows
                 var dict = sheetCacheEntry.RowNumberVsRowEntry;
                 HashSet<int> setEmptyRows = new HashSet<int>(sheetCacheEntry.EmptyRows);
                 var rect = sheet.Rects[0];
                 for (var r = rect.top; r <= rect.bottom; r++)
                 {
-                    if (setEmptyRows.Contains(r)) 
+                    if (setEmptyRows.Contains(r))
                     {
                         continue; // no need to gather empty row
                     }
                     // Row may not be there in dict if e.g. this req is asking for different rows than was cached
                     if (!dict.ContainsKey(r))
-                    {                        
+                    {
                         Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):Row not found in cache dict nor empty rows set, key:{sheetCacheKey}, row:{r}");
                         retCode |= 0x2;
                         continue; // We want to gather rows in this sheet which are there anyway, then continue
@@ -303,12 +304,12 @@ namespace RAppsAPI.Services
                         RN = sheetCacheRowEntry.Row.RN,
                         State = (sheetCacheRowEntry.State == MPMCacheRowState.DB) ? 1 : 2,
                         Cells = sheetCacheRowEntry.Row.Cells, // TODO: Can cache entry be lost while req is processed/before response?
-                                                         // GC should not clear this even if cache entry nulls
+                                                              // GC should not clear this even if cache entry nulls
                     };
                     responseSheet.Rows.Add(responseRow);
                 }
                 // Tables
-                foreach(var table in sheetCacheEntry.Tables)
+                foreach (var table in sheetCacheEntry.Tables)
                 {
                     responseSheet.Tables.Add(new()
                     {
@@ -327,11 +328,34 @@ namespace RAppsAPI.Services
                         BandedColumns = table.BandedColumns,
                         FilterButton = table.FilterButton,
                     });
-                }                
+                }
                 // Add to response only at end after all rows gathered for this sheet
                 response.Sheets.Add(responseSheet);
             } // for-sheet
+            // TODO: Add completed, incomplete & failed Edit reqs to response
+            // See MPMReadRequestResponseDTO
             return retCode;
+        }
+
+
+        public async Task<MPMEditRequestResponseDTO> EditFile(MPMEditRequestDTO editDTO)
+        {
+            // Try to write the edit req to DB first.
+            // This can fail due to various locks on the workbook.
+            // If failed then req will not be queued.
+
+            
+            MPMBGQCommand qCmd = new()
+            {
+                UserId = 0,
+                EditReq = editDTO,
+            };
+            _reqQueue.QueueBackgroundRequest(qCmd);
+            return new()
+            {
+                Code = 0,
+                Message = "",
+            };
         }
 
 

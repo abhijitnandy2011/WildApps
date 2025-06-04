@@ -1,5 +1,8 @@
 ﻿
 using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml.Drawing;
+using RAppsAPI.Models.MPM;
+using System.Diagnostics;
 
 
 namespace RAppsAPI.Data
@@ -49,7 +52,9 @@ namespace RAppsAPI.Data
 
         public virtual DbSet<Sheet> Sheets { get; set; }
 
+        public virtual DbSet<Edit> Edits { get; set; }
 
+        public virtual DbSet<MPMAddWBEditResult> AddWBEditResults { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {          
@@ -134,6 +139,13 @@ namespace RAppsAPI.Data
                 entity.HasKey(e => new { e.VfileId, e.SheetId, e.RowNum, e.ColNum }).HasName("PK_MPM_CellsID");
             });
 
+            modelBuilder.Entity<Edit>(entity =>
+            {
+                entity.HasKey(e => e.Id).HasName("PK_MPM_EditID");
+            });
+
+            modelBuilder.Entity<MPMAddWBEditResult>().HasNoKey();
+
         }
 
 
@@ -149,6 +161,19 @@ namespace RAppsAPI.Data
             int? objId3 = null)
         {
             Database.ExecuteSql($"EXECUTE dbo.logMsg {module}, {code}, {msg}, {description}, {createdByUserId}, {objId1}, {objId2}, {objId3}");
+        }
+
+        public MPMAddWBEditResult AddWBEdit(
+            int userId,
+            int fileId,
+            string json,
+            int trackingId,
+            int code = 0,            
+            string reason = "")
+        {
+            var result = AddWBEditResults.FromSql($"EXECUTE mpm.spAddWBEdit {userId}, {fileId}, {json}, {trackingId}, {code}, {reason}");
+            var first = result.First();
+            return first;
         }
     }
 

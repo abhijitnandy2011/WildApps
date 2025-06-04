@@ -4,6 +4,9 @@
 
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using RAppsAPI.Models.MPM;
 
 namespace RAppsAPI.Models.MPM
 {
@@ -63,3 +66,20 @@ namespace RAppsAPI.Models.MPM
     }   
 
 }
+
+[JsonSerializable(typeof(List<MPMEditRequestDTO>))]
+internal partial class MPMEditRequestDTOContext : JsonSerializerContext
+{
+}
+
+
+//---------------------------------------------
+// Response
+
+public class MPMEditRequestResponseDTO
+{
+    public int Code { get; set; } = -1;
+    public string Message { get; set; } = string.Empty;
+}
+
+

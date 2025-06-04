@@ -9,27 +9,21 @@ namespace RAppsAPI.Controllers
     [ApiController]
     public class MPMController : Controller
     {
-        private readonly IMPMService _mpmService;        
-        private readonly IMPMBackgroundRequestQueue _reqQueue;
+        private readonly IMPMService _mpmService;       
+        
 
-        public MPMController(IMPMService mpmService,
-            IMPMBackgroundRequestQueue queue)
+        public MPMController(IMPMService mpmService)
         {
             _mpmService = mpmService;
-            _reqQueue = queue;            
         }
 
         //[Authorize]
         [HttpPost("editFile")]
         public IActionResult editFile([FromBody] MPMEditRequestDTO editDTO)
         {
-            MPMBGQCommand qCmd = new()
-            {
-                UserId = 0,
-                EditReq = editDTO,
-            };
-            _reqQueue.QueueBackgroundRequest(qCmd);
-            return Ok("File edit request noted");
+            var response = _mpmService.EditFile(editDTO);
+            return Json(response);            
+            
         }
 
 

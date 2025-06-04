@@ -34,6 +34,8 @@ namespace RAppsAPI.Services
         // be enqueued.
         public async Task ProcessRequest(MPMBGQCommand qCmd, IServiceProvider serviceProvider)
         {
+            int retCode = 0;
+            string retMsg = "";
             var userId = qCmd.UserId;
             var req = qCmd.EditReq;
             var semId = req.FileId;
@@ -56,23 +58,33 @@ namespace RAppsAPI.Services
                 if (!_dictWorkbooks.ContainsKey(fileId))
                 {
                     // Workbook is not in dict,create it                    
-                    var (retCode, message) = BuildWorkbookFromDB(req, userId, dbContext);
-                    if (retCode > 0)
+                    (retCode, retMsg) = BuildWorkbookFromDB(req, userId, dbContext);
+                    if (retCode < 0)
                     {
                         // TODO: Failed to create workbook, put the request in failed queue & log it
-                        throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to build workbook from DB");
+                        UpdateFailedEditRequestInCache();
+                        throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to apply edit");
                     }
                 }
                 var p = _dictWorkbooks[req.FileId];
                 // Workbook is built, now apply the edits in the req & calc()
                 HashSet<string> diffSheets = new();
-                ApplyEditsToWorkbook(req, userId, p, out diffSheets);
+                // TODO: Check the return code for each function call
+                (retCode, retMsg) = ApplyEditsToWorkbook(req, userId, dbContext, p, out diffSheets);
+                if (retCode < 0)
+                {
+                    // TODO: Edit has failed, need to update cache failed edits list with reason & code
+                    UpdateFailedEditRequestInCache();                    
+                    throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to build workbook from DB");
+                }
                 // Update the sheet jsons in the cache from wb only for the ones mentioned in 'read'
                 // section of edit req. Mark such rows as 'temp'. This enables reads to get updated
                 // data ASAP, even if its marked as 'temp', while the wb is being written to DB.
-                UpdateCacheFromWorkbook(req, userId, serviceProvider, p);
+                (retCode, retMsg) = await UpdateCacheFromWorkbook(req, userId, serviceProvider, p);
                 // Update DB from wb - needs to be immediate as changes have to be saved.
-                UpdateDBFromWorkbook(req, userId, p, dbContext, diffSheets);
+                // NOTE: Explore other ways e.g. workbook can be written every 5 mins if dirty, not every edit.
+                // NOTE: WB must not get accessed by multiple Tasks/threads, so we wait till UpdateCache completes
+                (retCode, retMsg) = UpdateDBFromWorkbook(req, userId, p, dbContext, diffSheets);
                 // Invalidate all cache entries for the wb as new wb now written to DB.
                 // ALSO UPDATE COMPLETED EDIT REQUEST LIST
                 // New entries made by read reqs will now fetch updated data from DB itself & update to cache.
@@ -90,15 +102,20 @@ namespace RAppsAPI.Services
                 sem.Release();
                 // Release workbook sem as now read reqs can rebuild the cache from db
             }
-        }
+        }       
 
 
-       
+
+        // Build the workbook from DB data
+        // Returns: 0 on success
+        //         -1 on error
         private (int, string) BuildWorkbookFromDB(
             MPMEditRequestDTO req, 
             int userId, 
             RDBContext dbContext)
-        {           
+        {
+            int retCode = 0;
+            string retMsg = "";
             try
             {
                 var wbTools = new WBTools();
@@ -110,17 +127,22 @@ namespace RAppsAPI.Services
             }
             catch (Exception ex)
             {
+                retCode = -1;
+                retMsg = ex.Message;
                 Console.WriteLine($"BuildWorkbookFromDB:({req.ReqId},{userId}):{ex.Message}");
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine($"BuildWorkbookFromDB:({req.ReqId},{userId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
-                }
+                }                
             }            
-            return (0, "");
+            return (retCode, retMsg);
         }
 
 
         // Apply edits to in-mem workbook.
+        // Returns: 0 on success
+        //   -1 Failed to get lock while registering edit
+        //   -2 Exception
         // TODO: Some structural changes are left to edit.
         // Structural changes must block and cannot be mixed with other operations
         // as their order matters. They need to be confirmed complete by blocking the
@@ -130,15 +152,29 @@ namespace RAppsAPI.Services
         private (int, string) ApplyEditsToWorkbook(
             MPMEditRequestDTO req,
             int userId,
+            RDBContext dbContext,
             ExcelPackage ep,
             out HashSet<string> diffSheets)
         {
+            int retCode = 0;
+            string retMsg = "";
             diffSheets = new();
             try
             {
                 // TODO: Write edit request to DB first, state as 'Processing' with time.
                 // Set 'AppliedUpon' column to current file version.
-                
+                WBTools wbTools = new();
+                var resTuple = wbTools.WriteEditToDB(req, userId, dbContext);
+                if (resTuple.retCode < 0)
+                {
+                    // TODO: Write log
+                    var msg = $"ApplyEditsToWorkbook:Failed to register edit, reqId:{req.ReqId}, userId:{userId}";
+                    Console.WriteLine(msg);
+                    retCode = -1;
+                    retMsg = msg;
+                    return (retCode, retMsg);
+                }
+
                 // Make copy of data in all sheets
                 // TODO: It may be faster to just write all sheets instead of wasting time
                 // making a copy and diffing.
@@ -148,8 +184,7 @@ namespace RAppsAPI.Services
                 // But the bulk of the data will be unchanged so it will be prevented from
                 // unnecessarily writing to DB.
                 ExcelPackage epCopy;
-                WBTools wbTools = new();
-                wbTools.CloneExcelPackage(ep, out epCopy);
+                resTuple = wbTools.CloneExcelPackage(ep, out epCopy);
 
                 // Apply the changes------------------------
                 // TODO: Confirm if there are any structural changes and that they do not 
@@ -308,7 +343,7 @@ namespace RAppsAPI.Services
             /* var sheet1 = p.Workbook.Worksheets["Sheet1"];
              sheet1.Cells[1, 2].Value = sheet1.Cells[1, 2].Value + " TestChange";
              Console.WriteLine("ApplyEditsToWorkbook: {0}", sheet1.Cells[1, 2].Value);*/
-            return (0, "");
+            return (retCode, retMsg);
         }
 
         async private Task<(int, string)> UpdateCacheFromWorkbook(
@@ -317,6 +352,8 @@ namespace RAppsAPI.Services
             IServiceProvider serviceProvider,
             ExcelPackage ep)
         {
+            int retCode = 0;
+            string retMsg = "";
             try 
             { 
                 var buildCacheService = serviceProvider.GetRequiredService<IMPMBuildCacheService>();
@@ -332,7 +369,7 @@ namespace RAppsAPI.Services
                 // will be immediately available for reads.
                 // TODO: Tables need to be fully put in their sheet cache entries if updated,
                 // even if the edit.read section did not request it
-                int retCode = await buildCacheService.BuildFromExcelPackage(readReq, userId, Timeout.Infinite, serviceProvider, ep);
+                retCode = await buildCacheService.BuildFromExcelPackage(readReq, userId, Timeout.Infinite, serviceProvider, ep);
             }
             catch (Exception ex)
             {
@@ -342,7 +379,7 @@ namespace RAppsAPI.Services
                     Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
                 }
             }
-            return (0, "");
+            return (retCode, retMsg);
         }
 
         private (int, string) UpdateDBFromWorkbook(
@@ -352,29 +389,69 @@ namespace RAppsAPI.Services
             RDBContext dbContext,
             HashSet<string> diffSheets)
         {
-            // TODO: Clear the current workbook's data, file mentioned in req only
-            //TRUNCATE TABLE mpm.Sheets WHERE VFileId = req.FileId
-            //TRUNCATE TABLE mpm.Products
-            //TRUNCATE TABLE mpm.ProductTypes
-            //TRUNCATE TABLE mpm.MRanges
-            //TRUNCATE TABLE mpm.MSeries
-            //TRUNCATE TABLE mpm.MTables
-            //TRUNCATE TABLE mpm.Cells
+            int retCode = 0;
+            string retMsg = "";  
+            try
+            {
+                // NOTE: This is disabled for testing for now. Need to backup file before
+                // allowing changed wb to be written, possibly corrupting it.
+                // TODO: Clear the current workbook's data, file mentioned in req only
+                //TRUNCATE TABLE mpm.Sheets WHERE VFileId = req.FileId
+                //TRUNCATE TABLE mpm.Products
+                //TRUNCATE TABLE mpm.ProductTypes
+                //TRUNCATE TABLE mpm.MRanges
+                //TRUNCATE TABLE mpm.MSeries
+                //TRUNCATE TABLE mpm.MTables
+                //TRUNCATE TABLE mpm.Cells
 
-            // Update the DB, wb is still locked
-            //WBTools wbTools = new();
-            //wbTools.UpdateDBFromWorkbook(req.FileId, ep, diffSheets, dbContext);
+                // Update the DB, wb is still locked
+                //WBTools wbTools = new();
+                //wbTools.UpdateDBFromWorkbook(req.FileId, ep, diffSheets, dbContext);
 
-            // On completion of writing diffs to DB, mark editReq as complete in cache entry for the file
-            // for this user. This will inform frontend to pull data.
-            return (0, "");
+                // On completion of writing diffs to DB, mark editReq as complete in cache entry for the file
+                // for this user. This will inform frontend to pull data.
+            }
+            catch (Exception ex)
+            {                
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+            }
+            return (retCode, retMsg);
+        }
+
+        private (int, string) UpdateFailedEditRequestInCache(
+            List<MPMEditRequestDTO> reqs,
+            List<int> userIds,
+            IServiceProvider serviceProvider)
+        {
+            int retCode = 0;
+            string retMsg = "";
+            try
+            {
+                var buildCacheService = serviceProvider.GetRequiredService<IMPMBuildCacheService>();                
+                retCode = await buildCacheService.UpdateFailedEditsInCache(reqs, userIds);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+            }
+            return (retCode, retMsg);
+
         }
 
 
+        // Delete all sheet cache entries for a workbook so they are rebuilt from DB
         // ALSO UPDATE COMPLETED EDIT REQUEST LIST
         private void InvalidateCacheEntriesForWorkbook()
         {
-            // ALSO UPDATE COMPLETED EDIT REQUEST LIST
+            // ALSO UPDATE COMPLETED EDIT REQUEST LIST & FAILED EDIT REQ LIST
             throw new NotImplementedException();
         }
 

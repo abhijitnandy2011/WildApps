@@ -18,10 +18,16 @@ using OfficeOpenXml.Table;
 
 namespace RAppsAPI.ExcelUtils
 {
+    // This class has functions for workbook and db related operations.
+    // NOTE: The reason WBTools has to be instantiated and functions were not made static
+    // is because there was a chance that we might need to add members for file path later
+    // that will persist throughout as this class will become a singleton. But now we can try 
+    // to make all members static as the need for such members has not arisen.
     public class WBTools
     {
         public WBTools() { }
 
+        // TODO: Returns? Error codes?
         public (int, string) BuildWorkbookFromDB(
             MPMEditRequestDTO req,
             int userId,
@@ -117,6 +123,47 @@ namespace RAppsAPI.ExcelUtils
             //Console.WriteLine("BuildWorkbookFromDB: {0}", sheet1.Cells[1, 2].Value);
             return (0, "");
         }
+
+
+        // Writes(registers) a new edit in the DB which is yet to be applied.
+        // Caller must put an 'Edit lock' on the file before calling this function.
+        // The Edit's state will be updated to 'complete' later when it has been applied.
+        // Returns: 0 Success
+        //          1 Success but lock was transferred from another user to passed userId
+        //         -1 File is not locked for edit
+        //         -2 File is locked for backup
+        //         -3 Exception
+        public (int retCode, string retMsg) WriteEditToDB(MPMEditRequestDTO req, int userId, RDBContext dbContext)
+        {
+            int retCode = 0;
+            string retMsg = "";
+            try
+            {
+                // Create the json string for the edit request that will be written to the DB.
+                // TODO: This json output has to be checked if its correct
+                var json = JsonSerializer.Serialize(req, MPMEditRequestDTOContext.Default.MPMEditRequestDTO);
+                Console.WriteLine(json);
+                var result = dbContext.AddWBEdit(userId, req.FileId, json, req.ReqId);
+                if (result.RetCode < 0)
+                {
+                    // TODO: Log error to app log with SP name & return code
+                    retCode = result.RetCode;
+                    retMsg = result.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+                retCode = -3;
+                retMsg = ex.Message;
+            }
+            return (retCode, retMsg);
+        }
+
 
 
         //--------------------- Cell Style -----------------------
