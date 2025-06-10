@@ -2,18 +2,20 @@
 -- Calling process must set a lock on the file & ensure all edits applied before the backup is initiated
 -- Returns:
 --   0 Success, edit was written
---  -1 WB has edit lock, needs backup-in-progress lock
---  -2 WB needs backup-in-progress lock
---  -3 WB has pending edits
---  -4 Exception while running backup
---  -5 Failed to remove backup-in-progress lock
+--  -1 Exception while running backup
+--  -2 WB has edit lock, needs backup-in-progress lock
+--  -3 WB needs backup-in-progress lock
+--  -4 WB has pending edits
+--  -5 Backup exists already with latest(next) id
+--  -6 Failed to remove backup-in-progress lock
 --
 -- Test:
 -- UPDATE mpm.Locks SET Locked = 0 WHERE VFileID = 3 AND LockTypeID = 1   -- edit
 -- UPDATE mpm.Locks SET Locked = 1 WHERE VFileID = 3 AND LockTypeID = 2   -- backup-in-progress
 -- select * from mpm.Locks
 -- select * from mpm.LockTypes
---
+-- 
+-- TRUNCATE TABLE mpm.Edits
 -- TRUNCATE TABLE mpm.BackupSheets
 -- TRUNCATE TABLE mpm.BackupProducts
 -- EXEC mpm.spDoWBBackup 2, 3
@@ -62,7 +64,7 @@ BEGIN TRY
 	DECLARE @isFileLockedForEdit UDT_Bool = (SELECT Locked FROM mpm.Locks WHERE LockTypeID=@EDIT_LOCK_TYPE_ID AND VFileID = @VFileID)
 	IF @isFileLockedForEdit = 1
 	BEGIN
-		SET @retCode = -1
+		SET @retCode = -2
 		SET @message = 'File has edit lock. Needs backup-in-progress lock'
 		GOTO LABEL_RETURN
 	END
@@ -71,7 +73,7 @@ BEGIN TRY
 	DECLARE @isFileLockedForBackup UDT_Bool = (SELECT Locked FROM mpm.Locks WHERE LockTypeID=@BACKUPINPROGRESS_LOCK_TYPE_ID AND VFileID = @VFileID)
 	IF @isFileLockedForBackup != 1
 	BEGIN
-		SET @retCode = -2
+		SET @retCode = -3
 		SET @message = 'File needs backup-in-progress lock'
 		GOTO LABEL_RETURN
 	END
@@ -88,7 +90,7 @@ BEGIN TRY
 
 	IF @numPendingEdits > 0
 	BEGIN
-		SET @retCode = -3
+		SET @retCode = -4
 		SET @message = 'File has pending edits'
 		GOTO LABEL_RETURN
 	END
@@ -100,7 +102,7 @@ BEGIN TRY
 	DECLARE @numExistingBackupsWithNewID UDT_ID = (SELECT COUNT(*) FROM mpm.BackupSheets WHERE BackupID = @latestBackupID AND VFileID = @VFileID)
 	IF @numExistingBackupsWithNewID > 0
 	BEGIN
-		SET @retCode = -4
+		SET @retCode = -5
 		SET @message = 'Backup exists already with id:' + @latestBackupID
 		GOTO LABEL_RETURN
 	END
@@ -287,7 +289,7 @@ BEGIN TRY
 			@UserID, GETDATE(), NULL, NULL, @ACTIVE_ROW_STATUS
 		FROM mpm.MTables WHERE VFileID = @VFileID
 
-	-- Backup Cells
+	-- Backup Cells = NOTE, creation, lastupdated dates, rstatus is not preserved
 	INSERT INTO [mpm].[BackupCells]
            ([VFileID]
            ,[BackupID]
@@ -352,6 +354,9 @@ BEGIN TRY
 	-- Update latest backup id in mpm.Workbooks table, edits will now use this new backup id
 	UPDATE mpm.Workbooks SET LatestBackupID = @latestBackupID WHERE VFileID = @VFileID
 
+	-- Note Backup event success in db log
+	INSERT INTO mpm.DBLogs VALUES('Backup', 0, 'Success', '', NULL, NULL, 2, GETDATE())
+
 	IF @@TRANCOUNT > 0
 		COMMIT TRAN	
     
@@ -362,10 +367,10 @@ BEGIN CATCH
 	IF @@TRANCOUNT > 0
 		ROLLBACK TRANSACTION	
 	-- Set return code
-	SET @retCode = -4
+	SET @retCode = -1
 	SET @message = 'Line ' + CAST(ERROR_LINE() AS nvarchar(5)) + ':'+ ERROR_MESSAGE()
 	-- Note error in db log while doing backup
-	INSERT INTO mpm.DBLogs VALUES('Backup', 1, 'Failed', @message, NULL, NULL, 2, GETDATE())
+	INSERT INTO mpm.DBLogs VALUES('Backup', @retCode, 'Failed', @message, NULL, NULL, 2, GETDATE())
 	-- Update mpm.Backups table with state of backup & reason
 	IF EXISTS (SELECT 1 FROM mpm.WBBackups WHERE BackupID = @latestBackupID AND VFileID = @VFileID)
 	BEGIN 
@@ -403,7 +408,7 @@ END CATCH
 	EXECUTE @RC = mpm.spUpdateWBLock @UserID, @VFileID, @BACKUPINPROGRESS_LOCK_TYPE_ID, 0
 	IF @RC != 0
 	BEGIN 
-		SET @retCode = -5
+		SET @retCode = -6
 		SET @message = @message + 'Failed to remove backup-in-progress lock'  -- because an error msg maybe there already so keep it
 	END
 

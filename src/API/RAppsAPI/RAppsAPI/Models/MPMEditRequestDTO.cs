@@ -2,11 +2,8 @@
 // Directly applying row data in between without accounting for rows added/removed
 // will lead to data corruption. Same with cells/columns
 
-using System.ComponentModel.DataAnnotations.Schema;
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using System.Text.Json;
-using RAppsAPI.Models.MPM;
+
 
 namespace RAppsAPI.Models.MPM
 {
@@ -63,23 +60,26 @@ namespace RAppsAPI.Models.MPM
         public bool BandedRows { get; set; }
         public bool BandedColumns { get; set; }
         public bool FilterButton { get; set; }
-    }   
+    }
+
+
+    [JsonSerializable(typeof(List<MPMEditRequestDTO>))]
+    internal partial class MPMEditRequestDTOContext : JsonSerializerContext
+    {
+    }
+
+
+    //---------------------------------------------
+    // Response
+
+    public class MPMEditRequestResponseDTO
+    {
+        public int Code { get; set; } = -1;
+        public string Message { get; set; } = string.Empty;
+    }
 
 }
 
-[JsonSerializable(typeof(List<MPMEditRequestDTO>))]
-internal partial class MPMEditRequestDTOContext : JsonSerializerContext
-{
-}
 
-
-//---------------------------------------------
-// Response
-
-public class MPMEditRequestResponseDTO
-{
-    public int Code { get; set; } = -1;
-    public string Message { get; set; } = string.Empty;
-}
 
 

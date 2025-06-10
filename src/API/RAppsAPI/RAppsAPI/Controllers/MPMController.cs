@@ -21,7 +21,8 @@ namespace RAppsAPI.Controllers
         [HttpPost("editFile")]
         public IActionResult editFile([FromBody] MPMEditRequestDTO editDTO)
         {
-            var response = _mpmService.EditFile(editDTO);
+            var userId = 0;     // TODO: Get correct userId
+            var response = _mpmService.EditFile(editDTO, userId);
             return Json(response);            
             
         }
@@ -33,7 +34,7 @@ namespace RAppsAPI.Controllers
         [HttpPost("readFile")]
         public async Task<IActionResult> readFile([FromBody] MPMReadRequestDTO readDTO)
         {
-            var userId = 0;
+            var userId = 0;     // TODO: Get correct userId
             var response = await _mpmService.GetFileRows(readDTO, userId);
             return Json(response);
         }

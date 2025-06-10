@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml.Drawing;
 using RAppsAPI.Models.MPM;
 using System.Diagnostics;
+using System.Drawing;
 
 
 namespace RAppsAPI.Data
@@ -55,6 +56,8 @@ namespace RAppsAPI.Data
         public virtual DbSet<Edit> Edits { get; set; }
 
         public virtual DbSet<MPMAddWBEditResult> AddWBEditResults { get; set; }
+
+        public virtual DbSet<MPMUpdateWBEditResult> UpdateWBEditResults { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {          
@@ -146,6 +149,8 @@ namespace RAppsAPI.Data
 
             modelBuilder.Entity<MPMAddWBEditResult>().HasNoKey();
 
+            modelBuilder.Entity<MPMUpdateWBEditResult>().HasNoKey();
+
         }
 
 
@@ -163,6 +168,7 @@ namespace RAppsAPI.Data
             Database.ExecuteSql($"EXECUTE dbo.logMsg {module}, {code}, {msg}, {description}, {createdByUserId}, {objId1}, {objId2}, {objId3}");
         }
 
+        // TODO: Check this SP calling method & whether we are getting back values
         public MPMAddWBEditResult AddWBEdit(
             int userId,
             int fileId,
@@ -172,6 +178,19 @@ namespace RAppsAPI.Data
             string reason = "")
         {
             var result = AddWBEditResults.FromSql($"EXECUTE mpm.spAddWBEdit {userId}, {fileId}, {json}, {trackingId}, {code}, {reason}");
+            var first = result.First();
+            return first;
+        }
+
+        // TODO: Check this SP calling method & whether we are getting back values
+        internal MPMUpdateWBEditResult UpdateWBEdit(
+            int userId, 
+            int fileId, 
+            int editId, 
+            int code = 0,
+            string reason = "")
+        {
+            var result = UpdateWBEditResults.FromSql($"EXECUTE mpm.spUpdateWBEdit {userId}, {fileId}, {editId}, {code}, {reason}");
             var first = result.First();
             return first;
         }

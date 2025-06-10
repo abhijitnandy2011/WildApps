@@ -133,7 +133,48 @@ namespace RAppsAPI.ExcelUtils
         //         -1 File is not locked for edit
         //         -2 File is locked for backup
         //         -3 Exception
-        public (int retCode, string retMsg) WriteEditToDB(MPMEditRequestDTO req, int userId, RDBContext dbContext)
+        public (int retCode, string retMsg, int editId) WriteEditToDB(MPMEditRequestDTO req, int userId, RDBContext dbContext)
+        {
+            int retCode = 0;
+            string retMsg = "";
+            int editId = -1;
+            try
+            {
+                // Create the json string for the edit request that will be written to the DB.
+                // TODO: This json output has to be checked if its correct
+                var json = JsonSerializer.Serialize(req, MPMEditRequestDTOContext.Default.MPMEditRequestDTO);
+                Console.WriteLine(json);
+                var result = dbContext.AddWBEdit(userId, req.FileId, json, req.ReqId);
+                if (result.RetCode < 0)
+                {
+                    // TODO: Log error to app log with SP name & return code
+                    retCode = result.RetCode;
+                    retMsg = result.Message;
+                    editId = result.EditID;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+                retCode = -3;
+                retMsg = ex.Message;
+            }
+            return (retCode, retMsg, editId);
+        }
+
+
+
+        // Updates edit status in the DB.
+        // Returns: 0 Success
+        //          1 Success but lock was transferred from another user to passed userId
+        //         -1 File is not locked for edit
+        //         -2 File is locked for backup
+        //         -3 Exception
+        public (int retCode, string retMsg) UpdateEditInDB(MPMEditRequestDTO req, int userId, RDBContext dbContext)
         {
             int retCode = 0;
             string retMsg = "";
@@ -162,6 +203,8 @@ namespace RAppsAPI.ExcelUtils
                 retMsg = ex.Message;
             }
             return (retCode, retMsg);
+
+
         }
 
 

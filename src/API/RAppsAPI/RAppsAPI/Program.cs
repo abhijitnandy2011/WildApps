@@ -7,47 +7,79 @@ using RAppsAPI.Data;
 using RAppsAPI.Services;
 using Swashbuckle.AspNetCore.Filters;
 using System.Text;
+using Serilog;
+using Serilog.Events;
+
 
 ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-builder.Services.AddCors(options =>
+Log.Information("RApps: Just after bootstrap logger");
+
+try 
 {
-    options.AddDefaultPolicy(
-        policy =>
-        {
-            policy.WithOrigins("http://localhost:4200")
-            .AllowAnyMethod()
-            .AllowAnyHeader();  // TODO: this should not be needed!
-        });
-});
+    Log.Logger = new LoggerConfiguration()
+        .MinimumLevel.Debug()
+        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .WriteTo.File(
+            System.IO.Path.Combine(Environment.GetEnvironmentVariable("HOME"), "LogFiles", "Application", "diagnostics.txt"),
+            rollingInterval: RollingInterval.Day,
+            fileSizeLimitBytes: 10 * 1024 * 1024,
+            retainedFileCountLimit: 2,
+            rollOnFileSizeLimit: true,
+            shared: true,
+            flushToDiskInterval: TimeSpan.FromSeconds(1))
+        .CreateLogger();
 
-// Add services to the container.
+    Log.Information("RApps: Starting web host");
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+    //Log.Logger.Information("RApps: Logger: Starting web host");
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog();
+
+    builder.Services.AddCors(options =>
     {
-        In = ParameterLocation.Header,
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
+        options.AddDefaultPolicy(
+            policy =>
+            {
+                policy.WithOrigins("http://localhost:4200")
+                .AllowAnyMethod()
+                .AllowAnyHeader();  // TODO: this should not be needed!
+            });
     });
-    options.OperationFilter<SecurityRequirementsOperationFilter>();
-});
 
-builder.Services.AddDbContext<RDBContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    // Add services to the container.
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme; // IdentityConstants.ApplicationScheme;
-}).AddJwtBearer(options =>
+    builder.Services.AddControllers();
+    // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(options =>
+    {
+        options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+        {
+            In = ParameterLocation.Header,
+            Name = "Authorization",
+            Type = SecuritySchemeType.ApiKey,
+        });
+        options.OperationFilter<SecurityRequirementsOperationFilter>();
+    });
+
+    builder.Services.AddDbContext<RDBContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme; // IdentityConstants.ApplicationScheme;
+    }).AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -63,40 +95,53 @@ builder.Services.AddAuthentication(options =>
     });
 
 
-// Register interfaces for DI
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IFileService, FileService>();
-builder.Services.AddScoped<IFolderService, FolderService>();
-builder.Services.AddScoped<IMPMService, MPMService>();
-builder.Services.AddSingleton<IMPMBackgroundRequestQueue, MPMBackgroundRequestQueue>();
-builder.Services.AddSingleton<IMPMSpreadsheetService, MPMSpreadsheetService>();
-builder.Services.AddSingleton<IMPMBuildCacheService, MPMBuildCacheService>();
-builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
-builder.Services.AddLogging();
-builder.Services.AddMemoryCache();
+    // Register interfaces for DI
+    builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IFileService, FileService>();
+    builder.Services.AddScoped<IFolderService, FolderService>();
+    builder.Services.AddScoped<IMPMService, MPMService>();
+    builder.Services.AddSingleton<IMPMBackgroundRequestQueue, MPMBackgroundRequestQueue>();
+    builder.Services.AddSingleton<IMPMSpreadsheetService, MPMSpreadsheetService>();
+    builder.Services.AddSingleton<IMPMBuildCacheService, MPMBuildCacheService>();
+    builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
+    builder.Services.AddLogging();
+    builder.Services.AddMemoryCache();
 
-builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization();
 
-var app = builder.Build();
+    var app = builder.Build();
 
 
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+    // Configure the HTTP request pipeline.
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+
+    app.UseHttpsRedirection();
+
+    app.UseCors();
+
+    app.UseAuthentication();
+
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    app.Run();
+}
+catch(Exception ex) when (ex.GetType().Name is not "StopTheHostException" &&
+                          ex.GetType().Name is not "HostAbortedException")
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    Log.Fatal(ex, "RApps: Unhandled exception");
+}
+finally
+{
+    Log.Information("RApps: Shut down complete");
+    Log.CloseAndFlush();
 }
 
 
-app.UseHttpsRedirection();
-
-app.UseCors();
-
-app.UseAuthentication();
-
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();

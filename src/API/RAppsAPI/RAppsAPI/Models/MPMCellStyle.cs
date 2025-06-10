@@ -1,4 +1,4 @@
-﻿namespace RAppsAPI.Models
+﻿namespace RAppsAPI.Models.MPM
 {
     public class MPMCellStyle
     {

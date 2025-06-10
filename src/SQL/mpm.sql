@@ -26,8 +26,9 @@ CREATE TABLE mpm.Workbooks(
     Name             UDT_Name,  -- same as VFile.Name
 	LatestBackupID   UDT_ID_BIG, 
 	LatestVersionID  UDT_ID_BIG,   -- version number may not be sequential
-	LockHoldTimeInSecs     UDT_Number_Int,
-	BackupFrequencyInDays  UDT_Number_Int,  -- 0 means no backups
+	LockHoldTimeInSecs       UDT_Number_Int,
+	BackupFrequencyInDays    UDT_Number_Int,  -- 0 means no backups
+	WriteFrequencyInSeconds  UDT_Number_Int,  -- how frequently is the wb written to DB from in-mem
     Settings         UDT_Settings_Opt,   -- Other settings go here in JSON string format - can be columnized if necessary later
     CreatedBy        UDT_ID,
     CreatedDate      UDT_DateTime,
@@ -72,9 +73,9 @@ CREATE TABLE mpm.WBEventTypes(
 
 -- TODO
 DROP TABLE mpm.Edits;
-CREATE TABLE mpm.Edits(
-    ID               UDT_ID_BIG IDENTITY(1,1),
+CREATE TABLE mpm.Edits(    
     VFileID          UDT_ID,
+	EditID           UDT_ID_BIG,
 	BackupID         UDT_ID,
 	Json             nvarchar(MAX),
 	TrackingID       UDT_ID,          -- Tracking ID from client to support searching later    
@@ -85,7 +86,7 @@ CREATE TABLE mpm.Edits(
     LastUpdatedBy    UDT_Number_Int_Opt,
     LastUpdatedDate  UDT_DateTime_Opt,    -- if Applied then applied datetime, else if failed then failed datetime, null if pending
     RStatus          UDT_RowStatus,
-    CONSTRAINT PK_MPM_EditID PRIMARY KEY (ID),
+    CONSTRAINT PK_MPM_EditID PRIMARY KEY (VFileID, EditID),
 );
 
 

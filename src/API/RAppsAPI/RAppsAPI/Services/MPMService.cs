@@ -1,7 +1,9 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using Azure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using RAppsAPI.Data;
+using RAppsAPI.ExcelUtils;
 using RAppsAPI.Models.MPM;
 using static RAppsAPI.Data.DBConstants;
 
@@ -109,15 +111,15 @@ namespace RAppsAPI.Services
             catch (Exception ex)
             {
                 // TODO: Log error
-                string exMsg = ex.Message;
+                Console.WriteLine(ex.Message);
                 if (ex.InnerException != null)
                 {
-                    exMsg += "; InnerException:" + ex.InnerException.Message;
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
                 }
                 return new MPMGetProductInfoResponseDTO()
                 {
                     Code = (int)Constants.ResponseReturnCode.InternalError,
-                    Message = "Failed to read folder:" + exMsg,
+                    Message = "Failed to read folder:" + ex.Message,
                     Products = new()
                 };
             }
@@ -126,8 +128,9 @@ namespace RAppsAPI.Services
 
         // Get file rows
         // Return codes:
-        //    -1 failed to build cache after multiple tries
-        //    -2 failed to get rows even after building cache
+        //    -1 Exception
+        //    -2 failed to build cache after multiple tries
+        //    -3 failed to get rows even after building cache
         //     1 not all sheets found
         //     2 not all rows found in some sheets
         //     3 both the above
@@ -140,84 +143,113 @@ namespace RAppsAPI.Services
                 Code = 0,
                 Message = "",
                 CompletedEditRequests = new(),
-                IncompleteEditRequests = new(),
+                ChkedIncompleteEditRequests = new(),
+                FailedEditRequests = new(),
                 ReqId = readDTO.ReqId,
                 FileId = readDTO.FileId,
                 Sheets = new()
             };
-            // Add completed requests to response
-            var userEditsCacheKey = Constants.GetCompletedEditRequestsCacheKey(userId);
-            MPMUserEditReqsCacheEntry? userEditsCacheEntry;
-            var success = _memoryCache.TryGetValue(userEditsCacheKey, out userEditsCacheEntry);
-            if (!success || userEditsCacheEntry == null)
-            {
-                Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userEditsCacheKey}");
-                // Not an error as the entry will be absent if no edits have happened for the sheet
-            }
-            else
-            {
-                // Got the completed edit reqs entry in cache
-                response.CompletedEditRequests = userEditsCacheEntry!.ReqIdVsState;  // TODO: check, return full info as dictionary          
-            }
-            // Check completed edit requests if such a list was given, before doing a read
-            int retCode = 0;
-            if (((readDTO.CheckCompletedEditReqIds?.Count) ?? 0) > 0)
-            {
-                retCode = CheckCompletedEditRequests(readDTO, userId, userEditsCacheEntry.ReqIdVsState, response);
-                if (retCode != 0)
-                {
-                    // There was an error or there are incomplete requests, cant proceed with read
-                    return response;
-                }
-            }
-            // Can do read, check if cache has rows first
-            retCode = GatherRowsFromCache(readDTO, userId, response);
-            if (retCode == 0)
-            {
-                // Cache has rows, return the rows
-                return response;
-            }
-            // Cache didnt have rows, try to build the cache from DB
-            int triesLeft = Constants.CACHE_BUILD_FROM_DB_NUM_TRIES;
-            bool cacheBuilt = false;
-            do
-            {
-                retCode = await _buildCacheFromDBService.BuildFromDB(readDTO, userId, 0, _serviceProvider);
-                if (retCode == 0)
-                {
-                    cacheBuilt = true;
-                    break;
-                }
-                --triesLeft;
-                Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to build cache, tries left:{triesLeft}");
-            } while (triesLeft > 0);
-            if (cacheBuilt)
-            {
-                // Try to gather rows again
-                retCode = GatherRowsFromCache(readDTO, userId, response);
-                if (retCode == 0)
-                {
-                    return response;
+            try
+            {               
+                // First add failed edit requests to response
+                var userFailedEditsCacheKey = Constants.GetFailedEditRequestsCacheKey(userId);
+                MPMUserFailedEditReqsCacheEntry? userFailedEditsCacheEntry;
+                var success = _memoryCache.TryGetValue(userFailedEditsCacheKey, out userFailedEditsCacheEntry);
+                if (!success || userFailedEditsCacheEntry == null)
+                {                
+                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userFailedEditsCacheKey}");
+                    // Not an error as the entry will be absent if no failed edits yet
                 }
                 else
                 {
+                    // Got the failed edit reqs entry from cache
+                    response.FailedEditRequests = userFailedEditsCacheEntry;
+                }
+                // Second, add completed requests to response
+                var userEditsCacheKey = Constants.GetCompletedEditRequestsCacheKey(userId);
+                MPMUserEditReqsCacheEntry? userEditsCacheEntry;
+                success = _memoryCache.TryGetValue(userEditsCacheKey, out userEditsCacheEntry);
+                if (!success || userEditsCacheEntry == null)
+                {
+                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userEditsCacheKey}");
+                    // Not an error as the entry will be absent if no edits have happened for the sheet
+                }
+                else
+                {
+                    // Got the completed edit reqs entry from cache
+                    response.CompletedEditRequests = userEditsCacheEntry!.ReqIdVsState;  // TODO: check, return full info as dictionary          
+                }
+                // Third, check completed edit requests if such a list was given, before doing a read
+                int retCode = 0;
+                if (((readDTO.CheckCompletedEditReqIds?.Count) ?? 0) > 0)
+                {
+                    retCode = CheckCompletedEditRequests(readDTO, userId, userEditsCacheEntry.ReqIdVsState, response);
+                    if (retCode != 0)
+                    {
+                        // There was an error or there are incomplete requests, cant proceed with read
+                        return response;
+                    }
+                }
+                // Now, can do read, check if cache has rows first
+                retCode = GatherRowsFromCache(readDTO, userId, response);
+                if (retCode == 0)
+                {
+                    // Cache has rows, return the rows
+                    return response;
+                }
+                // Cache didnt have rows, try to build the cache from DB
+                int triesLeft = Constants.CACHE_BUILD_FROM_DB_NUM_TRIES;
+                bool cacheBuilt = false;
+                do
+                {
+                    (retCode, _) = await _buildCacheFromDBService.BuildFromDB(readDTO, userId, 0, _serviceProvider);
+                    if (retCode == 0)
+                    {
+                        cacheBuilt = true;
+                        break;
+                    }
+                    --triesLeft;
+                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to build cache, tries left:{triesLeft}");
+                } while (triesLeft > 0);
+                if (cacheBuilt)
+                {
+                    // Try to gather rows again
+                    retCode = GatherRowsFromCache(readDTO, userId, response);
+                    if (retCode == 0)
+                    {
+                        return response;
+                    }
+                    else
+                    {
+                        response.Code = -3;
+                        Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to get rows even after building cache");
+                    }
+                }
+                else
+                {
+                    // Failed to build cache after multiple tries                
                     response.Code = -2;
-                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to get rows even after building cache");
+                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to build cache after multiple tries");
+                }
+                response.Message = "Failed to get rows.";
+            }
+            catch (Exception ex)
+            {
+                response.Code = -1;
+                response.Message = ex.Message;
+                // TODO log error
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
                 }
             }
-            else
-            {
-                // Failed to build cache after multiple tries                
-                response.Code = -1;
-                Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Failed to build cache after multiple tries");
-            }
-            response.Message = "Failed to get rows.";
             return response;
         }
 
         // Check if the edit reqs specified by the user have been completed.
         // Returns:
-        //   0 if all the requests are complete
+        //    0 if all the requests are complete
         //   10 if not
         //   -1 on error
         private int CheckCompletedEditRequests(
@@ -227,139 +259,201 @@ namespace RAppsAPI.Services
             MPMReadRequestResponseDTO response)
         {
             int retCode = -1;
-            var reqsToBeChked = readDTO.CheckCompletedEditReqIds;
-            foreach (var rtc in reqsToBeChked)
+            try
             {
-                if (!dictReqIdVsState.ContainsKey(rtc))
+                var reqsToBeChked = readDTO.CheckCompletedEditReqIds;
+                foreach (var rtc in reqsToBeChked)
                 {
-                    // Add incomplete edit req
-                    response.IncompleteEditRequests.Add(rtc);
+                    if (!dictReqIdVsState.ContainsKey(rtc))
+                    {
+                        // Add incomplete edit req
+                        response.ChkedIncompleteEditRequests.Add(rtc);
+                    }
+                }
+                if (response.ChkedIncompleteEditRequests.Count > 0)
+                {
+                    response.Code = 10;
+                    response.Message = $"There are {response.ChkedIncompleteEditRequests.Count} incomplete edit requests";
                 }
             }
-            if (response.IncompleteEditRequests.Count > 0)
+            catch (Exception ex)
             {
-                response.Code = 10;
-                response.Message = $"There are {response.IncompleteEditRequests.Count} incomplete edit requests";
+                retCode = -1;
+                // TODO log error
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
             }
             return retCode;
         }
 
         // Try to gather rows from cache, or return failed.
         // Must read at least 1 row to get the table info for a sheet.
-        // Returns:
-        //      1 - not all sheets found
-        //      2 - not all rows found in some sheets
-        //      3 - both the above
+        // Returns: 0 success
+        //     -1 Exception
+        //      1 not all sheets found
+        //      2 not all rows found in some sheets
+        //      3 both the above
         private int GatherRowsFromCache(
             MPMReadRequestDTO req,
             int userId,
             MPMReadRequestResponseDTO response)
         {
             int retCode = 0;
-            foreach (var sheet in req.Sheets)
+            try
             {
-                var sheetName = sheet.SheetName;
-                if (sheet.Rects.Count == 0)
+                foreach (var sheet in req.Sheets)
                 {
-                    Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
-                    continue;
-                }
-                var sheetCacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
-                MPMSheetCacheEntry? sheetCacheEntry;
-                var success = _memoryCache.TryGetValue(sheetCacheKey, out sheetCacheEntry);
-                if (!success || sheetCacheEntry == null)
-                {
-                    Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):Cache key not found, for sheet, key:{sheetCacheKey}, sheet:{sheetName}");
-                    retCode |= 0x1;
-                    break;  // TODO: If we want to gather sheets which are there anyway, then continue
-                }
-                // Sheet cache entry is there
-                MPMReadResponseSheet responseSheet = new()
-                {
-                    SheetName = sheetName,
-                    Rows = new(),
-                    Tables = new(),
-                };
-                // Check and add rows
-                var dict = sheetCacheEntry.RowNumberVsRowEntry;
-                HashSet<int> setEmptyRows = new HashSet<int>(sheetCacheEntry.EmptyRows);
-                var rect = sheet.Rects[0];
-                for (var r = rect.top; r <= rect.bottom; r++)
-                {
-                    if (setEmptyRows.Contains(r))
+                    var sheetName = sheet.SheetName;
+                    if (sheet.Rects.Count == 0)
                     {
-                        continue; // no need to gather empty row
+                        Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):There are no Read Rects given for sheet:{sheetName}. Skipping reads.");
+                        continue;
                     }
-                    // Row may not be there in dict if e.g. this req is asking for different rows than was cached
-                    if (!dict.ContainsKey(r))
+                    var sheetCacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
+                    MPMSheetCacheEntry? sheetCacheEntry;
+                    var success = _memoryCache.TryGetValue(sheetCacheKey, out sheetCacheEntry);
+                    if (!success || sheetCacheEntry == null)
                     {
-                        Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):Row not found in cache dict nor empty rows set, key:{sheetCacheKey}, row:{r}");
-                        retCode |= 0x2;
-                        continue; // We want to gather rows in this sheet which are there anyway, then continue
+                        Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):Cache key not found, for sheet, key:{sheetCacheKey}, sheet:{sheetName}");
+                        retCode |= 0x1;
+                        break;  // TODO: If we want to gather sheets which are there anyway, then continue
                     }
-                    // Gather available row in cache
-                    var sheetCacheRowEntry = dict[r];
-                    var responseRow = new MPMReadResponseRow()
+                    // Sheet cache entry is there
+                    MPMReadResponseSheet responseSheet = new()
                     {
-                        RN = sheetCacheRowEntry.Row.RN,
-                        State = (sheetCacheRowEntry.State == MPMCacheRowState.DB) ? 1 : 2,
-                        Cells = sheetCacheRowEntry.Row.Cells, // TODO: Can cache entry be lost while req is processed/before response?
-                                                              // GC should not clear this even if cache entry nulls
+                        SheetName = sheetName,
+                        Rows = new(),
+                        Tables = new(),
                     };
-                    responseSheet.Rows.Add(responseRow);
-                }
-                // Tables
-                foreach (var table in sheetCacheEntry.Tables)
-                {
-                    responseSheet.Tables.Add(new()
+                    // Check and add rows
+                    var dict = sheetCacheEntry.RowNumberVsRowEntry;
+                    HashSet<int> setEmptyRows = new HashSet<int>(sheetCacheEntry.EmptyRows);
+                    var rect = sheet.Rects[0];
+                    for (var r = rect.top; r <= rect.bottom; r++)
                     {
-                        TableName = table.TableName,
-                        NumRows = table.NumRows,
-                        NumCols = table.NumCols,
-                        StartRowNum = table.StartRowNum,
-                        StartColNum = table.StartColNum,
-                        EndRowNum = table.EndRowNum,
-                        EndColNum = table.EndColNum,
-                        TableType = table.TableType,
-                        Style = table.Style,
-                        HeaderRow = table.HeaderRow,
-                        TotalRow = table.TotalRow,
-                        BandedRows = table.BandedRows,
-                        BandedColumns = table.BandedColumns,
-                        FilterButton = table.FilterButton,
-                    });
+                        if (setEmptyRows.Contains(r))
+                        {
+                            continue; // no need to gather empty row
+                        }
+                        // Row may not be there in dict if e.g. this req is asking for different rows than was cached
+                        if (!dict.ContainsKey(r))
+                        {
+                            Console.WriteLine($"GatherRowsFromCache:({userId},{req.ReqId}):Row not found in cache dict nor empty rows set, key:{sheetCacheKey}, row:{r}");
+                            retCode |= 0x2;
+                            continue; // We want to gather rows in this sheet which are there anyway, then continue
+                        }
+                        // Gather available row in cache
+                        var sheetCacheRowEntry = dict[r];
+                        var responseRow = new MPMReadResponseRow()
+                        {
+                            RN = sheetCacheRowEntry.Row.RN,
+                            State = (sheetCacheRowEntry.State == MPMCacheRowState.Temp) ? 1 : 2,
+                            Cells = sheetCacheRowEntry.Row.Cells, // TODO: Can cache entry be lost while req is processed/before response?
+                                                                  // GC should not clear this even if cache entry nulls
+                        };
+                        responseSheet.Rows.Add(responseRow);
+                    }
+                    // Tables
+                    foreach (var table in sheetCacheEntry.Tables)
+                    {
+                        responseSheet.Tables.Add(new()
+                        {
+                            TableName = table.TableName,
+                            NumRows = table.NumRows,
+                            NumCols = table.NumCols,
+                            StartRowNum = table.StartRowNum,
+                            StartColNum = table.StartColNum,
+                            EndRowNum = table.EndRowNum,
+                            EndColNum = table.EndColNum,
+                            TableType = table.TableType,
+                            Style = table.Style,
+                            HeaderRow = table.HeaderRow,
+                            TotalRow = table.TotalRow,
+                            BandedRows = table.BandedRows,
+                            BandedColumns = table.BandedColumns,
+                            FilterButton = table.FilterButton,
+                        });
+                    }
+                    // Add to response only at end after all rows gathered for this sheet
+                    response.Sheets.Add(responseSheet);
+                } // for-sheet    
+            }
+            catch (Exception ex)
+            {
+                retCode = -1;
+                // TODO log error
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
                 }
-                // Add to response only at end after all rows gathered for this sheet
-                response.Sheets.Add(responseSheet);
-            } // for-sheet
-            // TODO: Add completed, incomplete & failed Edit reqs to response
-            // See MPMReadRequestResponseDTO
+            }
             return retCode;
         }
 
 
-        public async Task<MPMEditRequestResponseDTO> EditFile(MPMEditRequestDTO editDTO)
+        
+        // Registers edit for processing, if written to DB successfully
+        // Returns: 0 on success
+        //         -1 Exception
+        //         -2 Failed to write edit to DB first before inserting in queue
+        public async Task<MPMEditRequestResponseDTO> EditFile(MPMEditRequestDTO editDTO, int userId)
         {
             // Try to write the edit req to DB first.
             // This can fail due to various locks on the workbook.
             // If failed then req will not be queued.
-
-            
-            MPMBGQCommand qCmd = new()
+            int retCode = 0;
+            string retMsg = "";
+            try
             {
-                UserId = 0,
-                EditReq = editDTO,
-            };
-            _reqQueue.QueueBackgroundRequest(qCmd);
+                // TODO: Write edit request to DB first, state as 'Processing' with time.
+                // Set 'AppliedUpon' column to current file version.
+                WBTools wbTools = new();
+                var req = editDTO;
+                var resTuple = wbTools.WriteEditToDB(req, userId, context);
+                if (resTuple.retCode == 0)
+                {
+                    MPMBGQCommand qCmd = new()
+                    {
+                        UserId = 0,
+                        RegdEditId = resTuple.editId,
+                        EditReq = editDTO,
+                    };
+                    _reqQueue.QueueBackgroundRequest(qCmd);
+                }
+                else
+                {
+                    // Failed to register edit, so return failure
+                    // TODO: Write log
+                    var msg = $"ApplyEditsToWorkbook:Failed to register edit, reqId:{req.ReqId}, userId:{userId}";
+                    Console.WriteLine(msg);
+                    retCode = -2;
+                    retMsg = msg;                   
+                }               
+            }
+            catch (Exception ex)
+            {
+                retCode = -1;
+                retMsg = ex.Message;
+                // TODO log error
+                Console.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Ex: {ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+            }
             return new()
             {
-                Code = 0,
-                Message = "",
+                Code = retCode,
+                Message = retMsg,
             };
         }
 
 
-    }
+    }  // class
 
     
-}
+}  // namespace

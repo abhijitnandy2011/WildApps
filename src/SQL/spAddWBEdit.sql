@@ -40,6 +40,7 @@ BEGIN
 
 	DECLARE @retCode int = 0
 	DECLARE @message nvarchar(200) = ''
+	DECLARE @lastEditID int = -1
 	DECLARE @lockedByUser UDT_ID
 	DECLARE @lastLockUpdatedTime UDT_DateTime
 
@@ -127,10 +128,14 @@ BEGIN
 		BEGIN
 			-- Get the latest backup ID for the file
 			DECLARE @latestBackupID UDT_ID = (SELECT LatestBackUpID FROM mpm.Workbooks WHERE VFileID = @VFileID)
+			SET @lastEditID = (SELECT MAX(EditID) + 1 FROM mpm.Edits WHERE VFileID = 3 GROUP BY VFileID)
+			SET @lastEditID = (SELECT ISNULL(@lastEditID,1))
+			print @lastEditID
 			-- TODO check if 0 rows and indicate error
 			-- Add to Edits table			
 			INSERT INTO [mpm].[Edits]
 					   ([VFileID]
+					   ,[EditID]
 					   ,[BackupID]
 					   ,[Json]
 					   ,[TrackingID]
@@ -143,6 +148,7 @@ BEGIN
 					   ,[RStatus])
 			VALUES
 			      (@VFileID
+				  ,@lastEditID
 			 	  ,@latestBackupID
 				  ,@Json
 				  ,@TrackingID
@@ -151,9 +157,8 @@ BEGIN
 				  ,@UserID
 				  ,GETDATE()
 				  ,NULL, NULL, @ACTIVE_ROW_STATUS)
+			
 			-- Add to Event log for this workbook file
-			DECLARE @lastEditID int = (SELECT SCOPE_IDENTITY())
-			print @lastEditID
 			INSERT INTO [mpm].[WBEventLogs]
 					   ([VFileID]
 					   ,[EventTypeID]
@@ -180,7 +185,8 @@ BEGIN
 		END
 	END	
 
-	SELECT @lockedByUser AS LockedBy, 
+	SELECT @lastEditID AS EditID,
+	       @lockedByUser AS LockedBy, 
 		   @lastLockUpdatedTime AS LastLockedTime,
 		   @retCode AS RetCode, 
 		   @message AS Message

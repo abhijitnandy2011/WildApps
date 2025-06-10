@@ -36,5 +36,20 @@ namespace RAppsAPI.Data
             return $"MPM_{fileId}_{sheetName}";
         }
 
+        public static DateTime GetWorkbookSheetCacheEntryExpiration()
+        {
+            return DateTime.Now + new TimeSpan(24, 0, 0);  // expire cache entry in 24 hours
+        }
+
+        public static DateTime GetWorkbookEditsCacheEntryExpiration()
+        {
+            return DateTime.Now + new TimeSpan(24, 0, 0);  // expire cache entry in 24 hours
+        }
+
+        public static DateTime GetWorkbookFailedEditsCacheEntryExpiration()
+        {
+            return DateTime.Now + new TimeSpan(24, 0, 0);  // expire cache entry in 24 hours
+        }
+
     }
 }

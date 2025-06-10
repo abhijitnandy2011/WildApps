@@ -34,8 +34,11 @@
         public int Code { get; set; } = -1;
         public string Message { get; set; } = string.Empty;
         public Dictionary<int, int> CompletedEditRequests { get; set; } // TODO: List of completed edit reqs as dictionary, will it convert to map<int, int>?
-        public List<int> IncompleteEditRequests { get; set; }
-        public Dictionary<int, MPMFailedEditInfo> FailedEditRequests { get; set; }
+        public List<int> ChkedIncompleteEditRequests { get; set; } // These are requests which are
+                                                              // incomplete out of the check list
+                                                              // given in read request.
+                                                              // Not pending requests.
+        public MPMUserFailedEditReqsCacheEntry FailedEditRequests { get; set; }
         public int ReqId { get; set; } // unique Id set by client to track req
         public int FileId { get; set; }
         public int NumSheets { get; set; }  // Add other workbook level settings here
@@ -83,4 +86,4 @@
         public bool FilterButton { get; set; }
     }
 
-}
+}  // namespace

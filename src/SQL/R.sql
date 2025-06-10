@@ -313,6 +313,20 @@ SELECT * FROM mpm.BackupSheets
 SELECT * FROM mpm.Products
 SELECT * FROM mpm.BackupProducts
 
+SELECT * FROM mpm.ProductTypes
+SELECT * FROM mpm.BackupProductTypes
+
+SELECT * FROM mpm.MRanges
+SELECT * FROM mpm.BackupMRanges
+
+SELECT * FROM mpm.MSeries
+SELECT * FROM mpm.BackupMSeries
+
+SELECT * FROM mpm.MTables
+SELECT * FROM mpm.BackupMTables
+
+SELECT * FROM mpm.Cells
+SELECT * FROM mpm.BackupCells
 
 -- TRUNCATE TABLE mpm.WBBackups
 
@@ -345,4 +359,13 @@ select * from mpm.LockTypes
 
 SELECT CASE WHEN DATEDIFF(ss, @lastUpdatedDate, GETDATE()) > 300 THEN 1 ELSE 0 END
 
+DECLARE @id int = (SELECT MAX(EditID) + 1 FROM mpm.Edits WHERE VFileID = 3 GROUP BY VFileID)
+SET @id = (SELECT ISNULL(@id,1))
+print @id
 
+select * from mpm.Edits
+
+SELECT * FROM mpm.Sheets WHERE VFileID =3
+SELECT * FROM mpm.BackupSheets WHERE VFileID =3
+
+--DELETE FROM mpm.Sheets WHERE VFileID =

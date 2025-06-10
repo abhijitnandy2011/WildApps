@@ -12,6 +12,7 @@ using static RAppsAPI.Data.DBConstants;
 using RAppsAPI.ExcelUtils;
 using OfficeOpenXml.Table;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.Extensions.DependencyInjection;
 
 
 namespace RAppsAPI.Services
@@ -32,6 +33,10 @@ namespace RAppsAPI.Services
 
         // TODO: Immediately puts an entry in cache to indicate cache is being built from wb
         // TODO: Time of starting cache build is also noted in the entry
+        // Returns: 0 on sucess
+        //         -1 Exception
+        //         -2 Failed to get semaphore lock
+        //         -3 Failed to get the cache
         // Front can check it & return later or be blocked-till-timeout by sem if it tries to Build() again
         // The sem avoids the problem where 2 threads both miss the cache leading to both creating
         // the cache entry from DB unnecessarily. Only one is needed.
@@ -52,12 +57,14 @@ namespace RAppsAPI.Services
         // sheet. That allows for fine grained locking.
         // NOTE: Initially both read & write reqs should block indefn even if double work to ensure reqd rows are
         // built. Build() will not build entire sheet anyway so it should be fast.
-        public async Task<int> BuildFromDB(
+        public async Task<(int, string)> BuildFromDB(
             MPMReadRequestDTO req, 
             int userId, 
             int waitTimeout, 
             IServiceProvider serviceProvider)
         {
+            int retCode = 0;
+            string retMsg = "";
             var semId = req.FileId;
             // Check if semp exists with this id in dict or exception!
             if (!_dictSemaphores.ContainsKey(semId))
@@ -74,15 +81,22 @@ namespace RAppsAPI.Services
                 var success = await sem.WaitAsync(waitTimeout);
                 if (!success)
                 {
-                    return -1;  // sem lock timeout, caller can block again or come back later
+                    return (-2, "sem lock timeout"); ;  // sem lock timeout, caller can block again or come back later
                 }
-                // Check if rows already created in cache by a previous req
+                // Check if rows already created in cache from DB, by a previous req
                 var cache = serviceProvider.GetRequiredService<IMemoryCache>();
+                if (cache == null)
+                {
+                    Console.WriteLine($"BuildFromDB: Cache not obtained");
+                    return (-3, "Failed to get cache");
+                }
                 var exists = CheckIfRowsAlreadyExistInCache(req, userId, cache);
                 if (exists)
                 {
                     // We are done
-                    return 0;
+                    // The rows in cache from DB are not neccesariy latest rows.
+                    // Cache eviction will refresh it later anyway
+                    return (0, "");
                 }
                 // TODO: Can release sem as we wont access the cache right now
                 //sem.Release();
@@ -123,7 +137,7 @@ namespace RAppsAPI.Services
                             ORDER BY RowNum, ColNum"
                         ).ToListAsync();
                     // Setup new cache entry
-                    var cacheEntry = new MPMSheetCacheEntry()
+                    var sheetCacheEntry = new MPMSheetCacheEntry()
                     {
                         FileId = req.FileId,
                         SheetName = sheetName,
@@ -132,7 +146,7 @@ namespace RAppsAPI.Services
                         Tables = new(),
                     };
                     // Copy from cells to cache entry struct
-                    var dict = cacheEntry.RowNumberVsRowEntry;
+                    var dict = sheetCacheEntry.RowNumberVsRowEntry;
                     HashSet<int> setNonEmptyRows = new();
                     foreach (var cell in listCellsResult)
                     {
@@ -166,7 +180,7 @@ namespace RAppsAPI.Services
                     for (var r = rect.top; r <= rect.bottom; r++)
                     {
                         if(!setNonEmptyRows.Contains(r))
-                            cacheEntry.EmptyRows.Add(r);
+                            sheetCacheEntry.EmptyRows.Add(r);
                     }
                     // Now get the table info
                     var listTablesResult = await dbContext.Database.SqlQuery<MTable>(
@@ -177,7 +191,7 @@ namespace RAppsAPI.Services
                     ).ToListAsync();
                     foreach(var table in listTablesResult)
                     {
-                        cacheEntry.Tables.Add(new()
+                        sheetCacheEntry.Tables.Add(new()
                         {
                             TableName = table.Name,
                             NumRows = table.NumRows,
@@ -196,8 +210,9 @@ namespace RAppsAPI.Services
                         });
                     }
                     // Update cache, mutex is locked already
-                    var cacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
-                    cache.Set(cacheKey, cacheEntry);
+                    var sheetCacheKey = Constants.GetWorkbookSheetCacheKey(req.FileId, sheetName);
+                    var ttl = Constants.GetWorkbookSheetCacheEntryExpiration();
+                    cache.Set(sheetCacheKey, sheetCacheEntry, ttl);
                     Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Cache rows built for request: file:{req.FileId}, sheet:{sheetName}");
                 } // foreach (var sheet ...
                 Console.WriteLine($"BuildFromDB:({userId},{req.ReqId}):Cache rows completed for request");
@@ -205,13 +220,20 @@ namespace RAppsAPI.Services
             catch (Exception ex)
             {
                 // TODO: Log error
-                string exMsg = ex.Message;
+                retCode = -1;
+                retMsg = ex.Message;
+                Console.WriteLine($"BuildFromDB:({req.ReqId},{userId}):{ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"BuildFromDB:({req.ReqId},{userId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+
             }
             finally
             {
                 sem.Release();
             }
-            return 0;
+            return (retCode, retMsg);
         }
 
         private bool CheckIfRowsAlreadyExistInCache(MPMReadRequestDTO req, int userId, IMemoryCache cache)
@@ -252,19 +274,26 @@ namespace RAppsAPI.Services
         }
 
 
+        // Returns: 0 on sucess
+        //         -1 Exception
+        //         -2 Failed to get semaphore lock
+        //         -3 Failed to get the cache
         // Called by bgservice after an edit to create rows directly from wb. This is fast.
         // This will also update the state of the Edit Req as 'Intermediate' after cache is set.
         // The individual RowStates will be set to 'Temp' till they are refreshed from DB.
         // We get a lock on the cache right away as this function is called from another
         // thread(bgservice). This means a client request and a bg thread could be setting
         // the cache entry at the same time.
-        public async Task<int> BuildFromExcelPackage(
+        public async Task<(int, string)> BuildFromExcelPackage(
             MPMReadRequestDTO req,
             int userId,
             int waitTimeout,
             IServiceProvider serviceProvider,
             ExcelPackage ep)
         {
+            int retCode = 0;
+            string retMsg = "";
+            SemaphoreSlim sem;
             var semId = req.FileId;
             // Check if semp exists with this id in dict
             if (!_dictSemaphores.ContainsKey(semId))
@@ -272,22 +301,22 @@ namespace RAppsAPI.Services
                 // Create file semaphore if not available in dict
                 _dictSemaphores[semId] = new SemaphoreSlim(1);
             }
-            var sem = _dictSemaphores[semId];
+            sem = _dictSemaphores[semId];
             try
-            {
-                // Lock sem right away
+            {                
+                // Lock cache sem right away
                 Console.WriteLine($"BuildFromExcelPackage:({userId},{req.ReqId}):waiting for lock...");
                 var success = await sem.WaitAsync(waitTimeout);
                 if (!success)
                 {
-                    return -1;  // sem lock timeout, caller can block again or come back later
+                    return (-2, "sem lock timeout");  // sem lock timeout, caller can block again or come back later
                 }
                 var wbTools = new WBTools();
                 var cache = serviceProvider.GetRequiredService<IMemoryCache>();
                 if (cache == null)
                 {
                     Console.WriteLine($"BuildFromExcelPackage: Cache not obtained");
-                    return 1;
+                    return (-3, "Failed to get cache");
                 }
                 foreach (var reqSheet in req.Sheets)
                 {
@@ -422,10 +451,11 @@ namespace RAppsAPI.Services
                         }
                     }
                     // Set the cache entry
-                    cache.Set(sheetCacheKey, sheetCacheEntry);
+                    var ttl = Constants.GetWorkbookSheetCacheEntryExpiration();
+                    cache.Set(sheetCacheKey, sheetCacheEntry, ttl);
                     Console.WriteLine($"BuildFromExcelPackage: Cache rows built for request:{req.ReqId}, file:{req.FileId}, sheet:{sheetName}");
                 } // foreach(sheet...
-                // Update request as completed               
+                // Update edit request as completed               
                 var userEditsCacheKey = Constants.GetCompletedEditRequestsCacheKey(userId);
                 MPMUserEditReqsCacheEntry? userEditsCacheEntry;
                 success = cache.TryGetValue(userEditsCacheKey, out userEditsCacheEntry);
@@ -439,26 +469,119 @@ namespace RAppsAPI.Services
                     };
                 }
                 userEditsCacheEntry.ReqIdVsState[req.ReqId] = (int)MPMUserEditReqState.Intermediate;
-                cache.Set(userEditsCacheKey, userEditsCacheEntry);                
+                var ttlEdits = Constants.GetWorkbookEditsCacheEntryExpiration();
+                cache.Set(userEditsCacheKey, userEditsCacheEntry, ttlEdits);                
                 Console.WriteLine($"BuildFromExcelPackage: Cache entry is INTERMEDIATE, cache rows in TEMP state for request {req.ReqId}");
             }
             catch (Exception ex)
             {
                 // TODO: Log error
-                string exMsg = ex.Message;
+                retCode = -1;
+                retMsg = ex.Message;
+                Console.WriteLine($"BuildFromExcelPackage:({req.ReqId},{userId}):{ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"BuildFromExcelPackage:({req.ReqId},{userId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+
             }
             finally
             {
                 sem.Release();
             }
-            return 0;
+            return (retCode, retMsg);
         }
 
 
-        // TODO: Update failed edit requests for user in cache
-        var userFailedEditsCacheKey = Constants.GetFailedEditRequestsCacheKey(userId);
-        // TODO: Failed req pass to this function and add to list in cache, so read can 
-        // send to user
+        // Takes a list of edit requests and userIds and updates their state as failed in the
+        // respective user's 'failed edits' list in cache. A read can include them in its response.
+        // Returns: 0 on success
+        //          1 Edit req already in cache, overwritten
+        //         -1 Exception
+        //         -2 sem lock timeout
+        //         -3 Failed to get cache
+        //
+        public async Task<(int, string)> UpdateFailedEditsInCache(
+            List<MPMFailedEditReqInfoInternal> failedReqs,
+            int waitTimeout,
+            IServiceProvider serviceProvider)
+        {
+            int retCode = 0;
+            string retMsg = "";            
+            try
+            {                
+                Console.WriteLine($"UpdateFailedEditsInCache: waiting for lock...");                
+                var wbTools = new WBTools();
+                var cache = serviceProvider.GetRequiredService<IMemoryCache>();
+                if (cache == null)
+                {
+                    Console.WriteLine($"UpdateFailedEditsInCache: Cache not obtained");
+                    return (-3, "Failed to get cache");
+                }
+                foreach (var failedReq in failedReqs)
+                {                    
+                    SemaphoreSlim sem;
+                    var req = failedReq.Req;
+                    var semId = req.FileId;
+                    // Check if semp exists with this id in dict
+                    if (!_dictSemaphores.ContainsKey(semId))
+                    {
+                        // Create file semaphore if not available in dict
+                        _dictSemaphores[semId] = new SemaphoreSlim(1);
+                    }
+                    sem = _dictSemaphores[semId];
+                    // Lock cache sem right away
+                    var success = await sem.WaitAsync(waitTimeout);
+                    if (!success)
+                    {
+                        retCode = -2;
+                        retMsg = "sem lock timeout";  // sem lock timeout, caller can block again or come back later
+                        break;
+                    }
+                    var userId = failedReq.UserId;
+                    var userFailedEditsCacheKey = Constants.GetFailedEditRequestsCacheKey(userId);
+                    MPMUserFailedEditReqsCacheEntry? userFailedEditsCacheEntry;
+                    success = cache.TryGetValue(userFailedEditsCacheKey, out userFailedEditsCacheEntry);
+                    if (!success || userFailedEditsCacheEntry == null)
+                    {
+                        Console.WriteLine($"UpdateFailedEditsInCache: Cache key not found, req:{req.ReqId}, key:{userFailedEditsCacheEntry}");
+                        // No cache entry yet, so create new one
+                        userFailedEditsCacheEntry = new()
+                        {
+                            ReqIdVsFailedEditInfo = new(),
+                        };
+                    }
+                    if (userFailedEditsCacheEntry.ReqIdVsFailedEditInfo.ContainsKey(req.ReqId))
+                    {
+                        Console.WriteLine($"WARN: UpdateFailedEditsInCache: Edit req id:{req.ReqId}, userid:{userId}, key:{userFailedEditsCacheEntry} is already in failed edits list in cache");
+                        retCode = 1;
+                        retMsg = "Edit req already in cache";
+                    }
+                    userFailedEditsCacheEntry.ReqIdVsFailedEditInfo[req.ReqId] = new() 
+                    {
+                        ReqId = req.ReqId,
+                        Code = failedReq.Code,
+                        Message = failedReq.Message,
+                    };
+                    var ttlFailedEdits = Constants.GetWorkbookFailedEditsCacheEntryExpiration();
+                    cache.Set(userFailedEditsCacheKey, userFailedEditsCacheEntry, ttlFailedEdits);
+                    sem.Release();
+                } // foreach
+            }
+            catch (Exception ex)
+            {
+                // TODO: Log error
+                retCode = -1;
+                retMsg = ex.Message;
+                Console.WriteLine($"UpdateFailedEditsInCache:{ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"UpdateFailedEditsInCache:{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+            }
+            return (retCode, retMsg);
+        }
+
 
 
     }

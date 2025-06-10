@@ -1,4 +1,4 @@
-﻿using RAppsAPI.Models.MPM;
+﻿
 
 namespace RAppsAPI.Models.MPM
 {
@@ -58,5 +58,10 @@ namespace RAppsAPI.Models.MPM
     public class MPMUserEditReqsCacheEntry
     {
         public Dictionary<int, int> ReqIdVsState { get; set; }
+    }
+
+    public class MPMUserFailedEditReqsCacheEntry
+    {
+        public Dictionary<int, MPMFailedEditInfo> ReqIdVsFailedEditInfo { get; set; }
     }
 }
