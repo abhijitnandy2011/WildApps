@@ -5,7 +5,7 @@ namespace RAppsAPI.Services
 {
     public interface IMPMSpreadsheetService
     {
-        public Task ProcessRequest(MPMBGQCommand qCmd, IServiceProvider serviceProvider);
+        public Task ProcessQueueCommand(MPMBGQCommand qCmd, IServiceProvider serviceProvider);
 
     }
 }

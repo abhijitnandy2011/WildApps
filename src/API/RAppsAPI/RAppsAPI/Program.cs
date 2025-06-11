@@ -104,6 +104,7 @@ try
     builder.Services.AddSingleton<IMPMSpreadsheetService, MPMSpreadsheetService>();
     builder.Services.AddSingleton<IMPMBuildCacheService, MPMBuildCacheService>();
     builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
+    builder.Services.AddHostedService<MPMMonitoringService>();
     builder.Services.AddLogging();
     builder.Services.AddMemoryCache();
 

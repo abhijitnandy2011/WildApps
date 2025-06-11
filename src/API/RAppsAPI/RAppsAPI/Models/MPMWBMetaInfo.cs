@@ -4,6 +4,7 @@
     {
         public int WriteFrequencyInSeconds { get; set; }
         public DateTime LastWriteTime { get; set; }
+        public bool IsModified { get; set; }
     }    
 
 }

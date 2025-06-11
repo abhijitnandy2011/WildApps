@@ -29,9 +29,9 @@ namespace RAppsAPI.Services
         public MPMSpreadsheetService(/*RDBContext context*/)
         {
             // TODO: What is semaphore is not there in the dict, when do we add it?
-            _dictSemaphores[1] = new SemaphoreSlim(1);
+            /*_dictSemaphores[1] = new SemaphoreSlim(1);
             _dictSemaphores[2] = new SemaphoreSlim(1);
-            _dictSemaphores[3] = new SemaphoreSlim(1);
+            _dictSemaphores[3] = new SemaphoreSlim(1);*/
         }
 
 
@@ -39,27 +39,149 @@ namespace RAppsAPI.Services
         // before putting in Queue. Structural changes cannot be mixed with value changes.
         // Both must come as independent requests. If there is a lock, the request must not
         // be enqueued.
-        public async Task ProcessRequest(MPMBGQCommand qCmd, IServiceProvider serviceProvider)
+        public async Task ProcessQueueCommand(MPMBGQCommand qCmd, IServiceProvider serviceProvider)
+        {
+            try
+            {
+                switch (qCmd.Command)
+                {
+                    case BGQueueCmd.Edit:
+                        await ProcessEditCommand(qCmd, serviceProvider);
+                        break;
+                    case BGQueueCmd.WriteFiles:
+                        await ProcessWriteFilesCommand(qCmd, serviceProvider);
+                        break;
+                    default:
+                        // TODO Log error
+                        Console.WriteLine($"ProcessQueueCommand: ERROR Unknown cmd:{qCmd.Command}");
+                        break;
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                // TODO: Log error
+                Console.WriteLine($"ProcessQueueCommand: ERROR ({qCmd.Command},{qCmd.UserId}):{ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"ProcessQueueCommand: ERROR ({qCmd.Command},{qCmd.UserId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+            }           
+        }
+
+
+        private async Task ProcessWriteFilesCommand(MPMBGQCommand qCmd, IServiceProvider serviceProvider)
         {
             int retCode = 0;
             string retMsg = "";
             var userId = qCmd.UserId;
             var req = qCmd.EditReq;
             var semId = req.FileId;
-            // TODO: check if semp exists with this id in dict or exception!
+            if (!_dictSemaphores.ContainsKey(semId))
+            {
+                // There is nothing to write
+                // TODO Log this
+                Console.WriteLine($"ProcessWriteFilesCommand:({req.ReqId},{qCmd.UserId}):No semaphore found, no file with id:'{req.FileId}' to write, returning");
+                return;
+            }
+            // There is a sem, so there maybe a file
             var sem = _dictSemaphores[semId];
             try
             {
-                Console.WriteLine($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Waiting for lock...");               
+                Console.WriteLine($"ProcessWriteFilesCommand:({req.ReqId},{qCmd.UserId}):Waiting for lock...");
                 await sem.WaitAsync();
-                Console.WriteLine($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Request processing started!");
+                Console.WriteLine($"ProcessWriteFilesCommand:({req.ReqId},{qCmd.UserId}):Request processing started!");
+                var fileId = req.FileId;
+                if (!_dictWorkbooks.ContainsKey(fileId))
+                {
+                    // No file to write in dict - not an issue as file has not been loaded for edit yet
+                    // TODO Remove this message later
+                    // TODO Log this
+                    Console.WriteLine($"ProcessWriteFilesCommand:({req.ReqId},{qCmd.UserId}):No file with id:'{req.FileId}' to write, returning");
+                    return;
+                }
+                // There is a file, check if modified
+                var wbMetaInfo = _dictWorkbookMetaInfo[fileId];
+                if (!wbMetaInfo.IsModified)
+                {
+                    Console.WriteLine($"ProcessWriteFilesCommand:({req.ReqId},{qCmd.UserId}):File with id:'{req.FileId}' not modified, skipping write to DB");
+                    return;
+                }
+                // File is modified, need to write to DB
+                using var scope = serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<RDBContext>();
+                if (dbContext == null)
+                {
+                    throw new Exception($"ProcessWriteFilesCommand: ERROR ({req.ReqId},{qCmd.UserId}):Failed to get dbContext even after using scope");
+                }
+                var elapsedTimeSinceLastWriteInSecs = (DateTime.Now - wbMetaInfo.LastWriteTime).TotalSeconds;
+                if (elapsedTimeSinceLastWriteInSecs > wbMetaInfo.WriteFrequencyInSeconds)
+                {
+                    // Workbook needs to be written
+                    // Making this part of an edit after cache updated. Not pushing cmd
+                    // into queue for this for now.
+                    var p = _dictWorkbooks[fileId];
+                    HashSet<string> diffSheets = new();
+                    (retCode, retMsg) = UpdateDBFromWorkbook(req, userId, p, dbContext, diffSheets);
+                    wbMetaInfo.IsModified = false;
+                    wbMetaInfo.LastWriteTime = DateTime.Now;
+                    if (retCode < 0)
+                    {
+                        // TODO Log error
+                    }
+                    // TODO: Clear cache entries so they refresh, though ttl will clear anyway?
+                    // Invalidate all cache entries for the wb as new wb now written to DB.
+                    // New entries made by read reqs will now fetch updated data from DB itself & update to cache.
+                    // So no more 'temp' rows after this point.                                                
+                    //InvalidateCacheEntriesForWorkbook();
+                }
+                // else no need to update db
+            }
+            catch (Exception ex)
+            {
+                // TODO: Log error
+                Console.WriteLine($"ProcessWriteFilesCommand: ERROR ({req.ReqId},{userId}):{ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"ProcessWriteFilesCommand:ERROR ({req.ReqId},{userId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
+            }
+            finally
+            {
+                sem.Release();
+                // Release workbook sem as now read reqs can rebuild the cache from db
+            }
+        }
+
+
+        // TODO: Edit request has to be validated by controller for some imp rules
+        // before putting in Queue. Structural changes cannot be mixed with value changes.
+        // Both must come as independent requests. If there is a lock, the request must not
+        // be enqueued.
+        private async Task ProcessEditCommand(MPMBGQCommand qCmd, IServiceProvider serviceProvider)
+        {
+            int retCode = 0;
+            string retMsg = "";
+            var userId = qCmd.UserId;
+            var req = qCmd.EditReq;
+            var semId = req.FileId;
+            if (!_dictSemaphores.ContainsKey(semId))
+            {
+                _dictSemaphores[semId] = new SemaphoreSlim(1);
+            }
+            var sem = _dictSemaphores[semId];
+            try
+            {
+                Console.WriteLine($"ProcessEditCommand:({req.ReqId},{qCmd.UserId}):Waiting for lock...");
+                await sem.WaitAsync();
+                Console.WriteLine($"ProcessEditCommand:({req.ReqId},{qCmd.UserId}):Request processing started!");
                 // Db code - uses scope per task(transient) as RDBContext is not thread safe
                 // https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/#avoiding-dbcontext-threading-issues
                 using var scope = serviceProvider.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<RDBContext>();
                 if (dbContext == null)
-                {                    
-                    throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to get dbContext even after using scope");
+                {
+                    throw new Exception($"ProcessEditCommand: ERROR ({req.ReqId},{qCmd.UserId}):Failed to get dbContext even after using scope");
                 }
                 var fileId = req.FileId;
                 if (!_dictWorkbooks.ContainsKey(fileId))
@@ -71,14 +193,27 @@ namespace RAppsAPI.Services
                         // TODO: Failed to create workbook, put the request in failed queue & log it
                         // Log the failure
                         await UpdateFailedEditRequestInCache(
-                            new List<MPMFailedEditReqInfoInternal> { 
-                                new() { Code=-1, Message=retMsg, Req=req, UserId=userId } 
-                            },                            
+                            new List<MPMFailedEditReqInfoInternal> {
+                                new() { Code=-1, Message=retMsg, Req=req, UserId=userId }
+                            },
                             serviceProvider);
-                        throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to build workbook from DB");
+                        throw new Exception($"ProcessEditCommand: ERROR ({req.ReqId},{qCmd.UserId}):Failed to build workbook from DB");
                     }
+                    // Add workbook meta info
+                    if (_dictWorkbookMetaInfo.ContainsKey(fileId))
+                    {
+                        Console.WriteLine($"ProcessEditCommand: WARN : ({req.ReqId},{qCmd.UserId}): File:{fileId}, there is already a wb meta info entry without wb entry");
+                    }
+                    // Overwrite if present
+                    _dictWorkbookMetaInfo[fileId] = new()
+                    {
+                        WriteFrequencyInSeconds = 300, // TODO - get this from DB in above BuildWorkbookFromDB()
+                        LastWriteTime = DateTime.Now,
+                        IsModified = false
+                    };
+                                            
                 }
-                var p = _dictWorkbooks[req.FileId];
+                var p = _dictWorkbooks[fileId];
                 // Workbook is built, now apply the edits in the req & calc()
                 HashSet<string> diffSheets = new();
                 // TODO: Check the return code for each function call
@@ -92,7 +227,7 @@ namespace RAppsAPI.Services
                                 new() { Code=-2, Message=retMsg, Req=req, UserId=userId }
                              },
                              serviceProvider);
-                    throw new Exception($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Failed to apply edits to workbook");
+                    throw new Exception($"ProcessEditCommand: ERROR ({req.ReqId},{qCmd.UserId}):Failed to apply edits to workbook");
 
                 }
                 // Update the sheet jsons in the cache from wb only for the ones mentioned in 'read'
@@ -105,7 +240,7 @@ namespace RAppsAPI.Services
                 }
                 // Mark this edit req as complete in DB as cache has been updated(cache complete edits list
                 // has also been updated)
-                (retCode, retMsg) = await UpdateEditRequestAsCompleteInDB(
+                (retCode, retMsg) = UpdateEditRequestAsCompleteInDB(
                                                 req, userId, qCmd.RegdEditId, dbContext);
                 if (retCode < 0)
                 {
@@ -118,7 +253,7 @@ namespace RAppsAPI.Services
                     _dictWorkbookMetaInfo[fileId] = new()
                     {
                         WriteFrequencyInSeconds = 300  // TODO: Get this from DB, each wb can have diff
-                    }; 
+                    };
                 }
                 else
                 {
@@ -131,24 +266,30 @@ namespace RAppsAPI.Services
                         // Making this part of an edit after cache updated. Not pushing cmd
                         // into queue for this for now.
                         (retCode, retMsg) = UpdateDBFromWorkbook(req, userId, p, dbContext, diffSheets);
+                        wbMetaInfo.IsModified = false;
                         wbMetaInfo.LastWriteTime = DateTime.Now;
+                        if (retCode < 0)
+                        {
+                            // TODO Log error
+                        }
                         // TODO: Clear cache entries so they refresh, though ttl will clear anyway?
                         // Invalidate all cache entries for the wb as new wb now written to DB.
                         // New entries made by read reqs will now fetch updated data from DB itself & update to cache.
                         // So no more 'temp' rows after this point.                                                
                         //InvalidateCacheEntriesForWorkbook();
                     }
-                    else if (retCode < 0)
-                    {
-                        // TODO Log error
-                    }
+                    // else no need to update db
                 }
-                Console.WriteLine($"ProcessRequest:({req.ReqId},{qCmd.UserId}):Request processing complete");
+                Console.WriteLine($"ProcessEditCommand:({req.ReqId},{qCmd.UserId}):Request processing complete");
             }
             catch (Exception ex)
             {
                 // TODO: Log error
-                string exMsg = ex.Message;                
+                Console.WriteLine($"ProcessEditCommand: ERROR ({req.ReqId},{userId}):{ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"ProcessEditCommand:ERROR ({req.ReqId},{userId}):{ex.InnerException.Message}\n Trace:{ex.StackTrace}");
+                }
             }
             finally
             {
@@ -157,12 +298,12 @@ namespace RAppsAPI.Services
             }
         }
 
-        
+
         // Update edit request as complete in DB
         // Returns: 0 on success
         //         -1 Exception/error
         //         Remaining codes come from SP directly
-        private async Task<(int retCode, string retMsg)> UpdateEditRequestAsCompleteInDB(
+        private (int retCode, string retMsg) UpdateEditRequestAsCompleteInDB(
             MPMEditRequestDTO req, int userId, int regdEditId, RDBContext dbContext)
         {
             int retCode = 0;
@@ -247,6 +388,8 @@ namespace RAppsAPI.Services
             diffSheets = new();
             try
             {
+                // Mark wb as modified right away
+                _dictWorkbookMetaInfo[req.FileId].IsModified = true;
                 WBTools wbTools = new WBTools();
                 // Apply the changes------------------------
                 // TODO: Confirm if there are any structural changes and that they do not 
@@ -388,6 +531,7 @@ namespace RAppsAPI.Services
             }
             return (retCode, retMsg);
         }
+
 
         async private Task<(int, string)> UpdateCacheFromWorkbook(
             MPMEditRequestDTO req,

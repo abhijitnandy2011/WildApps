@@ -37,7 +37,7 @@ namespace RAppsAPI.Services
                     {
                         //Console.WriteLine("Starting on request:{0}...", req.ReqId);                       
                         //_logger.LogInformation("Job completed successfully.");
-                        await _spreadsheetService.ProcessRequest(qCmd, _serviceProvider);
+                        await _spreadsheetService.ProcessQueueCommand(qCmd, _serviceProvider);
                         //Console.WriteLine("Finished request:{0}", req.ReqId);
                     }
                     catch (Exception ex)

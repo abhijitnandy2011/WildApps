@@ -418,6 +418,7 @@ namespace RAppsAPI.Services
                 {
                     MPMBGQCommand qCmd = new()
                     {
+                        Command = BGQueueCmd.Edit,
                         UserId = 0,
                         RegdEditId = resTuple.editId,
                         EditReq = editDTO,
