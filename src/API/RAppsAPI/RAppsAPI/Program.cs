@@ -21,28 +21,53 @@ Log.Information("RApps: Just after bootstrap logger");
 
 try 
 {
-    Log.Logger = new LoggerConfiguration()
-        .MinimumLevel.Debug()
-        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-        .Enrich.FromLogContext()
-        .WriteTo.Console()
-        .WriteTo.File(
-            System.IO.Path.Combine(Environment.GetEnvironmentVariable("HOME"), "LogFiles", "Application", "diagnostics.txt"),
-            rollingInterval: RollingInterval.Day,
-            fileSizeLimitBytes: 10 * 1024 * 1024,
-            retainedFileCountLimit: 2,
-            rollOnFileSizeLimit: true,
-            shared: true,
-            flushToDiskInterval: TimeSpan.FromSeconds(1))
-        .CreateLogger();
-
-    Log.Information("RApps: Starting web host");
-
-    //Log.Logger.Information("RApps: Logger: Starting web host");
-
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog();
+    if (!builder.Environment.IsDevelopment())
+    {
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+            .Enrich.FromLogContext()
+            .WriteTo.Console()
+            .WriteTo.File(
+                System.IO.Path.Combine(Environment.GetEnvironmentVariable("HOME"), "LogFiles", "Application", "diagnostics.txt"),
+                rollingInterval: RollingInterval.Day,
+                fileSizeLimitBytes: 10 * 1024 * 1024,
+                retainedFileCountLimit: 2,
+                rollOnFileSizeLimit: true,
+                shared: true,
+                flushToDiskInterval: TimeSpan.FromSeconds(1))
+            .CreateLogger();
+    }
+    else
+    {
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+            .Enrich.FromLogContext()
+            .WriteTo.Console()
+            .WriteTo.File(
+                "logs\\log.txt",
+                rollingInterval: RollingInterval.Day,
+                fileSizeLimitBytes: 10 * 1024 * 1024,
+                retainedFileCountLimit: 2,
+                rollOnFileSizeLimit: true,
+                shared: true,
+                flushToDiskInterval: TimeSpan.FromSeconds(1))
+            .CreateLogger();
+
+        /*builder.Host.UseSerilog((context, configuration) =>
+            configuration.ReadFrom.Configuration(context.Configuration));*/
+
+        //builder.Logging.AddSerilog();
+
+    }
+
+    Log.Information("RApps: Starting web host...");
+    //Log.Logger.Information("RApps: Logger: Starting web host");
+
+    //builder.Host.UseSerilog();
 
     builder.Services.AddCors(options =>
     {
@@ -105,7 +130,7 @@ try
     builder.Services.AddSingleton<IMPMBuildCacheService, MPMBuildCacheService>();
     builder.Services.AddHostedService<MPMQueuedReqProcessorBackgroundService>();
     builder.Services.AddHostedService<MPMMonitoringService>();
-    builder.Services.AddLogging();
+    //builder.Services.AddLogging();
     builder.Services.AddMemoryCache();
 
     builder.Services.AddAuthorization();
@@ -121,6 +146,7 @@ try
         app.UseSwaggerUI();
     }
 
+    //app.UseSerilogRequestLogging();
 
     app.UseHttpsRedirection();
 

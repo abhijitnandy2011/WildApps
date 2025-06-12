@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using RAppsAPI.Data;
 using RAppsAPI.Models.MPM;
+using Serilog;
 using static RAppsAPI.Data.Constants;
 
 namespace RAppsAPI.Services
@@ -23,7 +24,7 @@ namespace RAppsAPI.Services
 
         public Task StartAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("MPMMonitoringService:StartAsync: Hosted Service running.");
+            Log.Information("MPMMonitoringService:StartAsync: Hosted Service running.");
 
             _timer = new Timer(DoWork, null, TimeSpan.Zero,
                 TimeSpan.FromSeconds(MONITOR_INTERVAL_SECS));
@@ -35,12 +36,12 @@ namespace RAppsAPI.Services
         {
             var count = Interlocked.Increment(ref executionCount);
 
-            _logger.LogInformation(
+            Log.Information(
                 "MPMMonitoringService:DoWork: Hosted Service is working. Count: {Count}", count);
-            // Queue file writing check into queue every time this func is called
+            // Queue file writing check command into queue every time this func is called
             _reqQueue.QueueBackgroundRequest(new()
             {
-                UserId = 0,
+                UserId = DBConstants.ADMIN_USER_ID,
                 Command = BGQueueCmd.WriteFiles
             });
         }

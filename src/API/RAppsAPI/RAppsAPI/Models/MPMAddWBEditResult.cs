@@ -1,7 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RAppsAPI.Models.MPM
 {
+    [Keyless]
     public class MPMAddWBEditResult
     {
         public int EditID { get; set; }

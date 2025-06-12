@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using RAppsAPI.Data;
 using RAppsAPI.ExcelUtils;
 using RAppsAPI.Models.MPM;
+using Serilog;
 using static RAppsAPI.Data.DBConstants;
 
 namespace RAppsAPI.Services
@@ -156,8 +157,8 @@ namespace RAppsAPI.Services
                 MPMUserFailedEditReqsCacheEntry? userFailedEditsCacheEntry;
                 var success = _memoryCache.TryGetValue(userFailedEditsCacheKey, out userFailedEditsCacheEntry);
                 if (!success || userFailedEditsCacheEntry == null)
-                {                
-                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userFailedEditsCacheKey}");
+                {
+                    Log.Information($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userFailedEditsCacheKey}");
                     // Not an error as the entry will be absent if no failed edits yet
                 }
                 else
@@ -171,7 +172,7 @@ namespace RAppsAPI.Services
                 success = _memoryCache.TryGetValue(userEditsCacheKey, out userEditsCacheEntry);
                 if (!success || userEditsCacheEntry == null)
                 {
-                    Console.WriteLine($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userEditsCacheKey}");
+                    Log.Information($"GetFileRows:({userId},{readDTO.ReqId}):Cache key not found, key:{userEditsCacheKey}");
                     // Not an error as the entry will be absent if no edits have happened for the sheet
                 }
                 else
