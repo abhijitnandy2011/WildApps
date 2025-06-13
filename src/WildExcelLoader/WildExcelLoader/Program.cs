@@ -8,9 +8,12 @@
 
 
 using EFCore_DBLibrary;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Configuration;
+using Microsoft.VisualBasic;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using OfficeOpenXml.Table;
@@ -220,6 +223,7 @@ void loadCarsFile(string filePath)
                     dictProductTypes);
 
                 // Execute update query to update ranges
+                // TODO - wasnt this solved already? Do we still need it?
                 db.Database.ExecuteSql($@"
                     UPDATE  mpm.MTables SET
                     RangeID = s.RangeID
@@ -736,30 +740,18 @@ static void addSheetCells(
         for (int tc = startCol; tc <= endCol; ++tc)
         {
             var cell = cells[tr, tc];
-            string cellValue = cell.Value?.ToString() ?? "";
-            string cellFormula = cell.Formula;
-            string cellComment = cell.Comment?.ToString() ?? "";
-            string cellFormat = cell.Style.Numberformat.Format;
-            // Compose the style
-            // TODO: Lot more details of the style has to be captured
-            var cellStyle = GetBriefCellStyle(cell);                     
+            string cellValue, cellFormula, cellComment, cellFormat;
+            CellStyle cellStyle;
+            GetCellProperties(cell, out cellValue, out cellFormula, out cellComment, out cellFormat, out cellStyle);
             // Condition for defining an 'empty' cell is below:
-            if (cellValue == "" && cellFormula == "" && cellComment == "" &&
-                cellFormat == "General" && 
-                cellStyle.bg == "")   // TODO: The style may need more detailed checks
+            if (IsCellEmpty(cellValue, cellFormula, cellComment, cellFormat, cellStyle))   // TODO: The style may need more detailed checks
             {
                 // Skip cell as its values are empty
                 // TODO: Style and formatting needs to be checked too
                 continue;
             }
-            // Store defaults as empty strings, default values are known
-            // Format default
-            if(cellFormat == "General")
-            {
-                cellFormat = "";
-            }
             // TODO: Detect if all properties are the default values and shorten the json or make this empty string            
-            string styleJson = GetCellStyleAsJSONString(cellStyle);
+            var styleJson = GetCellStyleAsJSONString(cellStyle);
             // Add db cell
             var efCell = new Cell
             {
@@ -780,6 +772,43 @@ static void addSheetCells(
             efCells.Add(efCell);
             ++cellID;
         }
+    }    
+}
+
+static bool IsCellEmpty(
+    string cellValue, 
+    string cellFormula, 
+    string cellComment, 
+    string cellFormat, 
+    CellStyle cellStyle)
+{
+    return cellValue == "" && 
+        cellFormula == "" && 
+        cellComment == "" &&
+        cellFormat == "" &&
+        cellStyle.bg == "";
+}
+
+static void GetCellProperties(
+        ExcelRange cell,
+        out string cellValue,
+        out string cellFormula,
+        out string cellComment,
+        out string cellFormat,
+        out CellStyle cellStyle)
+{
+    cellValue = cell.Value?.ToString() ?? "";
+    cellFormula = cell.Formula;
+    cellComment = cell.Comment?.ToString() ?? "";
+    cellFormat = cell.Style.Numberformat.Format;
+    // Compose the style
+    // TODO: Lot more details of the style has to be captured
+    cellStyle = GetBriefCellStyle(cell);
+    // Store defaults as empty strings, default values are known
+    // Format default
+    if (cellFormat == "General")
+    {
+        cellFormat = "";
     }
 }
 
@@ -842,7 +871,7 @@ var listSkip = new List<string>()
 {
     ""
 };
-/*
+
 // TODO: return errors
 void createExcelFile(int fileId, string outputPath)
 {    
@@ -851,7 +880,6 @@ void createExcelFile(int fileId, string outputPath)
     {
         using (var db = new WildContext(_optionsBuilder.Options))
         {
-            //ExcelWorksheets worksheets = p.Workbook.Worksheets;
             try
             {
                 var sheets = db.Sheets.Where(s => s.VfileId == FILE_ID).OrderBy(s => s.SheetNum).ToList();
@@ -865,55 +893,54 @@ void createExcelFile(int fileId, string outputPath)
                     Console.WriteLine($"Creating sheet {sheet.Name}...");
                     // Create sheet in output file
                     var outSheet = p.Workbook.Worksheets.Add(sheet.Name);
-                    // Get the ranges in RangeNum order for this sheet
-                    var listRanges = (from r in db.Ranges
-                                 where r.VfileId == fileId && r.SheetId == sheet.SheetId
-                                 orderby r.RangeNum
-                                 select (new OutRangeInfo { RangeId = r.RangeId, HeaderTableId = r.HeaderTableId })).ToList();
-                    int currentRow = 1 + INITIAL_TOP_ROW_OFFSET;
-                    foreach (var range in listRanges)
+                    var destCells = outSheet.Cells;
+                    // Create the cells of the sheet
+                    var vFileIdParam = new SqlParameter("vFileIdParam", fileId);
+                    var activeStatusParam = new SqlParameter("activeStatusParam", RStatus.Active);
+                    var sheetId = sheet.SheetId;
+                    var sheetIdParam = new SqlParameter("sheetIdParam", sheetId);
+                    var listCellsResult = db.Database.SqlQuery<Cell>(
+                            @$"SELECT * FROM mpm.Cells WHERE 
+                            SheetId={sheetIdParam} AND VFileID={vFileIdParam} AND RStatus={activeStatusParam}
+                            ORDER BY RowNum, ColNum").ToList();                    
+                    foreach (var dbCell in listCellsResult)
                     {
-                        Console.WriteLine($"Creating range id: {range.RangeId}");
-                        // Now put the range header first in outSheet
-                        addRangeHeaderToOutSheet(db, FILE_ID, outSheet, ref currentRow, range);
-                        // Get the series in SeriesNum order for this sheet and range
-                        var listSeries = db.Series.Where(s => s.VfileId == fileId && s.SheetId == sheet.SheetId && s.RangeId == range.RangeId)
-                                       .OrderBy(s => s.SeriesNum)
-                                       .Select(s => new OutSeriesInfo{ HeaderTableId = s.HeaderTableId, DetailTableId = s.DetailTableId })
-                                       .ToList();
-                        foreach(var series in listSeries)
+                        var r = dbCell.RowNum;
+                        var c = dbCell.ColNum;
+                        var cellDest = destCells[r, c];
+                        if (dbCell.Formula.Trim().Length > 0)
                         {
-                            addSeriesHeaderAndDetailToOutSheet(db, FILE_ID, outSheet, ref currentRow, series);
-                            // Add inter-series gap
-                            currentRow += INTER_SERIES_ROW_GAP;
+                            cellDest.Formula = dbCell.Formula;
                         }
-                        // Add inter-range separator
-                        var interRangeRow = currentRow + INTER_RANGE_ROW_GAP/2;
-                        var destCells = outSheet.Cells;
-                        var dstRange = destCells[interRangeRow, 1, interRangeRow, 20];
-                        dstRange.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        dstRange.Style.Fill.BackgroundColor.SetColor(Color.Pink);
-                        // Add inter-range gap
-                        currentRow += INTER_RANGE_ROW_GAP;
-                    } // foreach (var range
-                    // Now put the master tables
-                    var listMTables = db.Tables.Where(t => t.VfileId == fileId && t.SheetId == sheet.SheetId && t.TableType == (int)TableTypes.MASTER).ToList();
-                    foreach (var table in listMTables)
-                    {
-                        // TODO: validations
-                        var dbCells = db.Cells.Where(c => c.VfileId == fileId && c.TableId == table.TableId).ToList();
-                        // TODO: validations
-                        addTableCellsToOutSheet(fileId, outSheet, ref currentRow, dbCells, table);
-                        currentRow += table.NumRows + 1;
-                        currentRow += INTER_MASTER_TABLE_ROW_GAP;
+                        else
+                        {
+                            cellDest.Value = dbCell.Value;
+                        }                        
+                        // TODO: Apply style, format, comment
                     }
-                    
+                    // Create all the tables
+                    var listMTables = db.Tables.Where(t => t.VfileId == fileId && t.SheetId == sheet.SheetId).ToList();
+                    foreach (var mTable in listMTables)
+                    {
 
-                } // end-foreach worksheet
+                        var startRow = mTable.StartRowNum;
+                        var startCol = mTable.StartColNum;
+                        if (mTable.HeaderRow)
+                            startRow++;
+                        var endRow = mTable.EndRowNum;
+                        var endCol = mTable.EndColNum;
+                        var dstRange = outSheet.Cells[startRow, startCol, endRow, endCol];
+                        Console.WriteLine($"mTable.Name:{mTable.Name}, sr:{startRow}, sc:{startCol}, er:{endRow}, ec:{endCol}");
+                        var dstTable = outSheet.Tables.Add(dstRange, mTable.Name);
+                        dstTable.ShowHeader = mTable.HeaderRow;
+                        //dstRange.Calculate();  // TODO: chk if needed
+                        dstRange.AutoFitColumns();
+                    }                   
+
+                } // foreach sheet
 
                 // Save the file
                 p.Save();
-
             }
             catch (Exception ex)
             {
@@ -929,6 +956,7 @@ void createExcelFile(int fileId, string outputPath)
 
 }
 
+/*
 (int, string) addSeriesHeaderAndDetailToOutSheet(WildContext db,int fileId,  ExcelWorksheet outSheet, ref int currentRow, OutSeriesInfo series)
 {
     // Add Series Header
@@ -1034,7 +1062,7 @@ void createExcelFile(int fileId, string outputPath)
     dstRange.AutoFitColumns();
     return ((int)ParseRetCode.SUCCESS, "");
 }
-
+*/
 
 //---------------------  Comparison ---------------------------------
 
@@ -1140,7 +1168,7 @@ void createExcelFile(int fileId, string outputPath)
     //Console.WriteLine($"Processing {tableName}...");
     return (tableName, startRow, startCol, endRow, endCol);
 }
-*/
+
 
 //----------------------------- main -----------------------------
 // Upload
@@ -1156,9 +1184,11 @@ BuildOptions();
 
 //loadWorkbook(filePath);
 
-loadCarsFile(filePath);
+//loadCarsFile(filePath);
 
-//createExcelFile(FILE_ID, outputPath);
+createExcelFile(FILE_ID, outputPath);
+
+
 
 //compareWorkbooks(path1, path2);
 
