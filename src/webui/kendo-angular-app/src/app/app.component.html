@@ -1,15 +1,1 @@
-<app-header (toggle)="toggleDrawer(drawer)"></app-header>
-<kendo-drawer-container>
-  <kendo-drawer
-    #drawer
-    [items]="items"
-    [mode]="mode"
-    [mini]="mini"
-    [expanded]="false"
-    [animation]="false"
-  >
-  </kendo-drawer>
-  <kendo-drawer-content>
-    <router-outlet></router-outlet>
-  </kendo-drawer-content>
-</kendo-drawer-container>
+<router-outlet></router-outlet>

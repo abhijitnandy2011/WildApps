@@ -32,6 +32,12 @@
   </kendo-appbar-section>
 
   <kendo-appbar-section>
-    <kendo-avatar [imageSrc]="kendokaAvatar" shape="circle" width="26px" height="26px"></kendo-avatar>
+    <kendo-avatar
+      [imageSrc]="kendokaAvatar"
+      shape="circle"
+      width="26px"
+      height="26px"
+      (click)="logout()"
+    ></kendo-avatar>
   </kendo-appbar-section>
 </kendo-appbar>

@@ -1,0 +1,11 @@
+<div class="login">
+  <h4>Welcome to CPM!</h4>
+  <p>Please log in</p>
+  <input type="text" [(ngModel)]="loginObj.username" placeholder="User Name" />
+  <input type="password" [(ngModel)]="loginObj.password" placeholder="Password" />
+  <button (click)="onClick()">Log In</button>
+  <div class="links">
+    <a href="#">Forgot password</a>
+    <a href="#">Register</a>
+  </div>
+</div>
