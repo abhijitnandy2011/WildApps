@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs/internal/firstValueFrom';
+import { LS_KEYNAME_USERINFO } from '../../settings/app.settings';
 
 @Component({
   selector: 'app-login',
@@ -34,11 +35,11 @@ export class LoginComponent {
         })
       );
       console.log(result);
-      localStorage.setItem('user', JSON.stringify(result));
+      await localStorage.setItem(LS_KEYNAME_USERINFO, JSON.stringify(result));
       this.router.navigateByUrl('files');
     } catch (error: any) {
-      console.log('ERROR:', error);
-      localStorage.removeItem('user');
+      console.log('ERROR:onClick:', error);
+      localStorage.removeItem(LS_KEYNAME_USERINFO);
     }
   }
 }

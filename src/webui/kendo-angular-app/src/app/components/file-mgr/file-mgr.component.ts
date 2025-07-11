@@ -83,7 +83,8 @@ export class FileMgrComponent {
     //const param = this.route.snapshot.queryParams['param'];
     // Accessing route data
     //const data = this.route.snapshot.data;
-    this.getFolderObjects();
+    //this.getFolderObjects();
+    this.get_DEV_UserMe(); // <----- DEVEL
   }
 
   // Get the folder contents(which are folder objects i.e. folder, file or link)
@@ -198,5 +199,10 @@ export class FileMgrComponent {
       this.folderObjectTypePrompt = 'file';
     }
     this.opened = true;
+  }
+
+  //------------ DEVEL ---------------
+  get_DEV_UserMe() {
+    this.folderService.get_DEV_AuthenticatedUser();
   }
 }

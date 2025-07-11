@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CreateFolderRequest } from '../models/create-folder-request';
 import { API_URL } from '../settings/app.settings';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -25,4 +26,14 @@ export class FolderService {
   }
 
   createFile() {}
+
+  //------------ DEVEL -----------------
+  async get_DEV_AuthenticatedUser() {
+    try {
+      var result = await firstValueFrom(this.http.get('https://dummyjson.com/auth/me'));
+      console.log('get_DEV_AuthenticatedUser:result:', result);
+    } catch (error: any) {
+      console.log('ERROR:get_DEV_AuthenticatedUser:', error);
+    }
+  }
 }
