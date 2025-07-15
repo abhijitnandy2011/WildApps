@@ -32,6 +32,7 @@ export class LoginComponent {
         this.http.post('https://dummyjson.com/auth/login', {
           username: 'emilys',
           password: 'emilyspass',
+          expiresInMins: 1,
         })
       );
       console.log(result);

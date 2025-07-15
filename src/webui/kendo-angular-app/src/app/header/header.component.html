@@ -31,6 +31,13 @@
     <span class="k-appbar-separator"></span>
   </kendo-appbar-section>
 
+  <kendo-avatar
+    [imageSrc]="kendokaAvatar"
+    shape="circle"
+    width="26px"
+    height="26px"
+    (click)="sendRequest()"
+  ></kendo-avatar>
   <kendo-appbar-section>
     <kendo-avatar
       [imageSrc]="kendokaAvatar"
